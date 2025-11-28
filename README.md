@@ -1,4 +1,4 @@
-# envyhub
+# NVHUD
 
 **Next-Generation Performance Overlay for NVIDIA Linux Gaming**
 
@@ -24,7 +24,7 @@ MangoHud is great, but it has limitations for NVIDIA users:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  envyhub v0.1                              DP-1 165Hz VRR   │
+│  NVHUD v0.1                              DP-1 165Hz VRR   │
 ├─────────────────────────────────────────────────────────────┤
 │  FPS: 142 (0.1% low: 98)     Frame Time: 7.0ms              │
 │  GPU: 72°C  98%  1980MHz     VRAM: 8.2/12GB  68%            │
@@ -48,7 +48,7 @@ MangoHud is great, but it has limitations for NVIDIA users:
 
 ### Reflex Integration
 
-envyhub displays the full NVIDIA Reflex latency pipeline when nvlatency is active:
+nvhud displays the full NVIDIA Reflex latency pipeline when nvlatency is active:
 
 ```
 Latency Breakdown:
@@ -64,7 +64,7 @@ Latency Breakdown:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        envyhub                               │
+│                        NVHUD                               │
 ├───────────┬───────────┬───────────┬────────────────────────┤
 │  metrics  │  render   │  config   │      hotkeys           │
 │  (NVML)   │  (Vulkan) │  (toml)   │      (input)           │
@@ -94,28 +94,28 @@ envyhub run -- ./game
 
 ```bash
 # Show current metrics (terminal)
-envyhub status
+nvhud status
 
 # Configure overlay
-envyhub config --position top-left --opacity 0.8
+nvhud config --position top-left --opacity 0.8
 
 # Enable specific metrics
-envyhub metrics add reflex shader-status vrr
+nvhud metrics add reflex shader-status vrr
 
 # Disable specific metrics
-envyhub metrics remove cpu-temp ram
+nvhud metrics remove cpu-temp ram
 
 # Benchmark mode (log to file)
-envyhub benchmark --duration 300 --output bench.csv
+nvhud benchmark --duration 300 --output bench.csv
 
 # Compare runs
-envyhub compare bench1.csv bench2.csv
+nvhud compare bench1.csv bench2.csv
 ```
 
 ### Configuration
 
 ```toml
-# ~/.config/envyhub/config.toml
+# ~/.config/nvhud/config.toml
 
 [overlay]
 enabled = true
@@ -162,14 +162,14 @@ screenshot = "RShift+F10"
 
 ```bash
 # Enable/disable
-ENVYHUB_ENABLED=1
+NVHUD_ENABLED=1
 
 # Quick config
-ENVYHUB_POSITION=top-right
-ENVYHUB_METRICS=fps,frametime,gpu,reflex
+NVHUD_POSITION=top-right
+NVHUD_METRICS=fps,frametime,gpu,reflex
 
 # Steam launch options
-ENVYHUB_ENABLED=1 %command%
+NVHUD_ENABLED=1 %command%
 ```
 
 ## Building
@@ -195,7 +195,7 @@ sudo zig build install --prefix /usr/local
 zig build install --prefix ~/.local
 
 # Install Vulkan layer
-sudo cp vulkan/envyhub_layer.json /etc/vulkan/implicit_layer.d/
+sudo cp vulkan/nvhud_layer.json /etc/vulkan/implicit_layer.d/
 ```
 
 ## Comparison with MangoHud
@@ -246,4 +246,3 @@ See [TODO.md](TODO.md) for the development roadmap.
 
 ---
 
-*"envy" = NVIDIA envy + environment hub*
