@@ -1,15 +1,15 @@
-# NVHUD
+# nvhud
 
 **Next-Generation Performance Overlay for NVIDIA Linux Gaming**
 
 A modern, GPU-accelerated on-screen display (OSD) built in Zig as a MangoHud alternative with NVIDIA-specific optimizations, lower overhead, and deeper integration with the nv* ecosystem.
 
-## Why envyhub?
+## Why nvhud?
 
 MangoHud is great, but it has limitations for NVIDIA users:
 
-| Feature | MangoHud | envyhub |
-|---------|----------|---------|
+| Feature | MangoHud | nvhud |
+|---------|----------|-------|
 | **Overhead** | ~2-5% CPU | <1% (GPU-rendered) |
 | **NVIDIA metrics** | Basic (nvidia-smi) | Deep NVML integration |
 | **Latency display** | Frame time only | Full Reflex pipeline |
@@ -81,10 +81,10 @@ Latency Breakdown:
 
 ```bash
 # Enable for all Vulkan games
-envyhub enable
+nvhud enable
 
 # Run specific game with overlay
-envyhub run -- ./game
+nvhud run -- ./game
 
 # Toggle overlay in-game
 # Default: Right Shift + F12
@@ -208,16 +208,16 @@ Hardware: RTX 4080, Ryzen 7 7800X3D
 
 No Overlay:    avg 89.2 FPS
 MangoHud:      avg 86.7 FPS (-2.8%)
-envyhub:       avg 88.9 FPS (-0.3%)
+nvhud:         avg 88.9 FPS (-0.3%)
 ```
 
 ### Why Lower Overhead?
 
-1. **GPU-rendered** - Overlay composited on GPU, not CPU
-2. **Direct NVML** - No nvidia-smi subprocess spawning
-3. **Zig** - No GC, minimal runtime, small binary
-4. **Async sampling** - Metrics collected off main thread
-5. **Vulkan-native** - No X11/Wayland compositor interaction
+1. **GPU-rendered** — Overlay composited on GPU, not CPU
+2. **Direct NVML** — No nvidia-smi subprocess spawning
+3. **Zig** — No GC, minimal runtime, small binary
+4. **Async sampling** — Metrics collected off main thread
+5. **Vulkan-native** — No X11/Wayland compositor interaction
 
 ## Integration with nv* Stack
 
@@ -234,7 +234,7 @@ envyhub:       avg 88.9 FPS (-0.3%)
 - NVIDIA GPU (Kepler or newer)
 - NVIDIA driver 470+
 - Vulkan 1.2+
-- Zig 0.12+
+- Zig 0.14+
 
 ## License
 

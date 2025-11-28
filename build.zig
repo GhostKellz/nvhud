@@ -41,6 +41,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
+    // NVML is loaded dynamically at runtime, no linking needed
+
     // Here we define an executable. An executable needs to have a root module
     // which needs to expose a `main` function. While we could add a main function
     // to the module defined above, it's sometimes preferable to split business
@@ -80,6 +82,8 @@ pub fn build(b: *std.Build) void {
                 // importing modules from different packages).
                 .{ .name = "nvhud", .module = mod },
             },
+            // Link libc for dlopen/dlsym (NVML dynamic loading)
+            .link_libc = true,
         }),
     });
 
