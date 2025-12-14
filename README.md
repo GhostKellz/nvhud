@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo/nvhud.png" alt="nvhud logo" width="300">
+</p>
+
 # nvhud
 
 **Next-Generation Performance Overlay for NVIDIA Linux Gaming**
