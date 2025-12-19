@@ -102,8 +102,8 @@ pub const Overlay = struct {
 
     pub fn deinit(self: *Overlay) void {
         if (self.collector) |*c| c.deinit();
-        self.commands.deinit();
-        self.lines.deinit();
+        self.commands.deinit(self.allocator);
+        self.lines.deinit(self.allocator);
     }
 
     /// Toggle visibility

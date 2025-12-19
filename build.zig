@@ -39,6 +39,8 @@ pub fn build(b: *std.Build) void {
         // Later on we'll use this module as the root module of a test executable
         // which requires us to specify a target.
         .target = target,
+        // Link libc for dlopen/dlsym (NVML dynamic loading)
+        .link_libc = true,
     });
 
     // NVML is loaded dynamically at runtime, no linking needed
@@ -92,6 +94,10 @@ pub fn build(b: *std.Build) void {
     // step). By default the install prefix is `zig-out/` but can be overridden
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
+
+    // Build the Vulkan layer shared library (disabled for now - needs Zig 0.16 ArrayList API updates)
+    // TODO: Update overlay.zig to use ArrayListUnmanaged for layer compatibility
+    // The layer hooks are defined in vulkan_layer.zig and work, but need ArrayList fixes
 
     // This creates a top level step. Top level steps have a name and can be
     // invoked by name when running `zig build` (e.g. `zig build run`).

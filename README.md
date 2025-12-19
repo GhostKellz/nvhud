@@ -8,6 +8,13 @@
 
 A modern, GPU-accelerated on-screen display (OSD) built in Zig as a MangoHud alternative with NVIDIA-specific optimizations, lower overhead, and deeper integration with the nv* ecosystem.
 
+## Driver 590+ Optimizations
+
+nvhud 0.2.0 is optimized for NVIDIA 590.48.01+ drivers which include:
+- **Vulkan swapchain performance** - Overlay injection remains smooth during window operations
+- **Better EGL multisample** - Improved rendering on high-DPI displays
+- **Wayland 1.20+ support** - Full overlay functionality on modern compositors
+
 ## Why nvhud?
 
 MangoHud is great, but it has limitations for NVIDIA users:
@@ -236,9 +243,10 @@ nvhud:         avg 88.9 FPS (-0.3%)
 ## Requirements
 
 - NVIDIA GPU (Kepler or newer)
-- NVIDIA driver 470+
+- NVIDIA driver 590+ recommended (590.48.01+)
+  - Minimum: 470+ (basic functionality)
 - Vulkan 1.2+
-- Zig 0.14+
+- Zig 0.16+
 
 ## License
 
