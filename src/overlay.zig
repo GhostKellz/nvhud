@@ -74,8 +74,8 @@ pub const Overlay = struct {
     visible: bool = true,
 
     // Render state
-    commands: std.ArrayList(RenderCommand),
-    lines: std.ArrayList(HudLine),
+    commands: std.ArrayListUnmanaged(RenderCommand) = .{},
+    lines: std.ArrayListUnmanaged(HudLine) = .{},
 
     // Frame timing
     frame_times: metrics.FrameTimeBuffer = .{},
@@ -94,8 +94,6 @@ pub const Overlay = struct {
         return Overlay{
             .allocator = allocator,
             .cfg = cfg,
-            .commands = std.ArrayList(RenderCommand).init(allocator),
-            .lines = std.ArrayList(HudLine).init(allocator),
             .collector = metrics.Collector.init(),
         };
     }
@@ -104,6 +102,7 @@ pub const Overlay = struct {
         if (self.collector) |*c| c.deinit();
         self.commands.deinit(self.allocator);
         self.lines.deinit(self.allocator);
+        self.* = undefined;
     }
 
     /// Toggle visibility
@@ -147,33 +146,33 @@ pub const Overlay = struct {
         if (self.cfg.show_fps) {
             const fps_str = self.fmtBuf("{d:.0}", .{frame.fps});
             const color = if (frame.fps < 30) self.cfg.critical_color else if (frame.fps < 60) self.cfg.warning_color else self.cfg.accent_color;
-            self.lines.append(.{ .label = "FPS", .value = fps_str, .color = color }) catch {};
+            self.lines.append(self.allocator, .{ .label = "FPS", .value = fps_str, .color = color }) catch {};
         }
 
         // Frame time
         if (self.cfg.show_frametime) {
             const ft_str = self.fmtBuf("{d:.1}ms", .{frame.frame_time_ms});
-            self.lines.append(.{ .label = "Frame", .value = ft_str }) catch {};
+            self.lines.append(self.allocator, .{ .label = "Frame", .value = ft_str }) catch {};
         }
 
         // GPU temp
         if (self.cfg.show_gpu_temp and m.temperature > 0) {
             const temp_str = self.fmtBuf("{d}°C", .{m.temperature});
             const color = if (m.temperature >= self.cfg.temp_critical) self.cfg.critical_color else if (m.temperature >= self.cfg.temp_warning) self.cfg.warning_color else self.cfg.text_color;
-            self.lines.append(.{ .label = "GPU", .value = temp_str, .color = color }) catch {};
+            self.lines.append(self.allocator, .{ .label = "GPU", .value = temp_str, .color = color }) catch {};
         }
 
         // GPU utilization
         if (self.cfg.show_gpu_util and m.gpu_util > 0) {
             const util_str = self.fmtBuf("{d}%", .{m.gpu_util});
             const bar_val = @as(f32, @floatFromInt(m.gpu_util)) / 100.0;
-            self.lines.append(.{ .label = "Load", .value = util_str, .bar_value = bar_val }) catch {};
+            self.lines.append(self.allocator, .{ .label = "Load", .value = util_str, .bar_value = bar_val }) catch {};
         }
 
         // GPU clock
         if (self.cfg.show_gpu_clock and m.gpu_clock > 0) {
             const clock_str = self.fmtBuf("{d}MHz", .{m.gpu_clock});
-            self.lines.append(.{ .label = "Clock", .value = clock_str }) catch {};
+            self.lines.append(self.allocator, .{ .label = "Clock", .value = clock_str }) catch {};
         }
 
         // Power
@@ -181,7 +180,7 @@ pub const Overlay = struct {
             const power_str = self.fmtBuf("{d}W", .{m.power_draw});
             const pct = m.powerUsagePercent();
             const color = if (pct >= 95) self.cfg.warning_color else self.cfg.text_color;
-            self.lines.append(.{ .label = "Power", .value = power_str, .color = color }) catch {};
+            self.lines.append(self.allocator, .{ .label = "Power", .value = power_str, .color = color }) catch {};
         }
 
         // VRAM
@@ -190,31 +189,31 @@ pub const Overlay = struct {
             const total_gb = @as(f32, @floatFromInt(m.vram_total)) / 1024.0;
             const vram_str = self.fmtBuf("{d:.1}/{d:.0}G", .{ vram_gb, total_gb });
             const bar_val = @as(f32, @floatFromInt(m.vram_used)) / @as(f32, @floatFromInt(m.vram_total));
-            self.lines.append(.{ .label = "VRAM", .value = vram_str, .bar_value = bar_val }) catch {};
+            self.lines.append(self.allocator, .{ .label = "VRAM", .value = vram_str, .bar_value = bar_val }) catch {};
         }
 
         // Fan
         if (self.cfg.show_fan and m.fan_speed > 0) {
             const fan_str = self.fmtBuf("{d}%", .{m.fan_speed});
-            self.lines.append(.{ .label = "Fan", .value = fan_str }) catch {};
+            self.lines.append(self.allocator, .{ .label = "Fan", .value = fan_str }) catch {};
         }
 
         // PCIe
         if (self.cfg.show_pcie and m.pcie_gen > 0) {
             const pcie_str = self.fmtBuf("Gen{d}x{d}", .{ m.pcie_gen, m.pcie_width });
-            self.lines.append(.{ .label = "PCIe", .value = pcie_str }) catch {};
+            self.lines.append(self.allocator, .{ .label = "PCIe", .value = pcie_str }) catch {};
         }
 
         // Encoder
         if (self.cfg.show_encoder and m.encoder_util > 0) {
             const enc_str = self.fmtBuf("{d}%", .{m.encoder_util});
-            self.lines.append(.{ .label = "NVENC", .value = enc_str }) catch {};
+            self.lines.append(self.allocator, .{ .label = "NVENC", .value = enc_str }) catch {};
         }
 
         // P-state
         if (self.cfg.show_pstate) {
             const pstate_str = self.fmtBuf("P{d}", .{m.pstate});
-            self.lines.append(.{ .label = "State", .value = pstate_str }) catch {};
+            self.lines.append(self.allocator, .{ .label = "State", .value = pstate_str }) catch {};
         }
     }
 
@@ -249,7 +248,7 @@ pub const Overlay = struct {
         }
 
         // Background
-        self.commands.append(.{ .rect = .{
+        self.commands.append(self.allocator, .{ .rect = .{
             .x = x,
             .y = y,
             .width = hud_width,
@@ -261,7 +260,7 @@ pub const Overlay = struct {
         var line_y = y + @as(i32, @intCast(padding));
         for (self.lines.items) |line| {
             // Label
-            self.commands.append(.{ .text = .{
+            self.commands.append(self.allocator, .{ .text = .{
                 .x = x + @as(i32, @intCast(padding)),
                 .y = line_y,
                 .text = line.label,
@@ -270,7 +269,7 @@ pub const Overlay = struct {
             } }) catch {};
 
             // Value
-            self.commands.append(.{ .text = .{
+            self.commands.append(self.allocator, .{ .text = .{
                 .x = x + @as(i32, @intCast(hud_width)) - @as(i32, @intCast(padding)) - 60,
                 .y = line_y,
                 .text = line.value,
@@ -280,7 +279,7 @@ pub const Overlay = struct {
 
             // Optional bar
             if (line.bar_value) |val| {
-                self.commands.append(.{ .bar = .{
+                self.commands.append(self.allocator, .{ .bar = .{
                     .x = x + @as(i32, @intCast(hud_width)) - @as(i32, @intCast(padding)) - 50,
                     .y = line_y + @as(i32, @intCast(self.cfg.font_size)) - 4,
                     .width = 45,
@@ -297,7 +296,7 @@ pub const Overlay = struct {
         // Frame time graph
         if (self.cfg.show_frametime_graph and self.frame_times.count > 10) {
             const graph_height: u32 = 40;
-            self.commands.append(.{ .graph = .{
+            self.commands.append(self.allocator, .{ .graph = .{
                 .x = x,
                 .y = line_y,
                 .width = hud_width,

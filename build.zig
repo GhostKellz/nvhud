@@ -21,6 +21,13 @@ pub fn build(b: *std.Build) void {
     // target and optimize options) will be listed when running `zig build --help`
     // in this directory.
 
+    // Get nvvk dependency
+    const nvvk_dep = b.dependency("nvvk", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const nvvk_mod = nvvk_dep.module("nvvk");
+
     // This creates a module, which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.
     // Zig modules are the preferred way of making Zig code available to consumers.
@@ -41,6 +48,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         // Link libc for dlopen/dlsym (NVML dynamic loading)
         .link_libc = true,
+        .imports = &.{
+            .{ .name = "nvvk", .module = nvvk_mod },
+        },
     });
 
     // NVML is loaded dynamically at runtime, no linking needed
@@ -95,9 +105,32 @@ pub fn build(b: *std.Build) void {
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
 
-    // Build the Vulkan layer shared library (disabled for now - needs Zig 0.16 ArrayList API updates)
-    // TODO: Update overlay.zig to use ArrayListUnmanaged for layer compatibility
-    // The layer hooks are defined in vulkan_layer.zig and work, but need ArrayList fixes
+    // Build the Vulkan layer shared library
+    const layer_lib = b.addLibrary(.{
+        .linkage = .dynamic,
+        .name = "nvhud_layer",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/vulkan_layer.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{
+                .{ .name = "nvhud", .module = mod },
+                .{ .name = "nvvk", .module = nvvk_mod },
+            },
+        }),
+    });
+    layer_lib.linkSystemLibrary("vulkan");
+    b.installArtifact(layer_lib);
+
+    // Install layer manifest
+    const layer_step = b.step("layer", "Install Vulkan layer manifest");
+    const install_manifest = b.addInstallFile(
+        b.path("nvhud_layer.json"),
+        "share/vulkan/implicit_layer.d/nvhud_layer.json",
+    );
+    layer_step.dependOn(&install_manifest.step);
+    layer_step.dependOn(&layer_lib.step);
 
     // This creates a top level step. Top level steps have a name and can be
     // invoked by name when running `zig build` (e.g. `zig build run`).

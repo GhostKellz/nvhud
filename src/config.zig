@@ -85,6 +85,7 @@ pub const Config = struct {
     show_pcie: bool = false,
     show_encoder: bool = false,
     show_pstate: bool = false,
+    show_latency: bool = false, // NVIDIA Reflex latency (requires nvvk)
 
     // Overlay settings
     position: Position = .top_left,
@@ -158,6 +159,7 @@ pub const Config = struct {
             .show_pcie = true,
             .show_encoder = true,
             .show_pstate = true,
+            .show_latency = true,
         };
     }
 
