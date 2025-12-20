@@ -5,6 +5,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const font = @import("nvhud").font;
 
 // Vulkan types (definitions needed for layer)
 const VkResult = enum(i32) {
@@ -88,6 +89,11 @@ const VkLayerFunction = enum(i32) {
 // Vulkan format enum
 const VkFormat = enum(i32) {
     VK_FORMAT_UNDEFINED = 0,
+    VK_FORMAT_R8_UNORM = 9, // For font texture
+    VK_FORMAT_R32_SFLOAT = 100,
+    VK_FORMAT_R32G32_SFLOAT = 103,
+    VK_FORMAT_R32G32B32_SFLOAT = 106,
+    VK_FORMAT_R32G32B32A32_SFLOAT = 109,
     VK_FORMAT_R8G8B8A8_UNORM = 37,
     VK_FORMAT_R8G8B8A8_SRGB = 43,
     VK_FORMAT_B8G8R8A8_UNORM = 44,
@@ -262,6 +268,93 @@ const VkPipelineLayout = u64;
 const VkShaderModule = u64;
 const VkBuffer = u64;
 const VkDeviceMemory = u64;
+const VkSampler = u64;
+const VkDescriptorPool = u64;
+const VkDescriptorSet = u64;
+const VkDescriptorSetLayout = u64;
+
+// Image types and enums
+const VkImageType = enum(i32) {
+    VK_IMAGE_TYPE_1D = 0,
+    VK_IMAGE_TYPE_2D = 1,
+    VK_IMAGE_TYPE_3D = 2,
+};
+
+const VkImageTiling = enum(i32) {
+    VK_IMAGE_TILING_OPTIMAL = 0,
+    VK_IMAGE_TILING_LINEAR = 1,
+};
+
+const VkImageUsageFlags = u32;
+const VK_IMAGE_USAGE_TRANSFER_DST_BIT: VkImageUsageFlags = 0x00000002;
+const VK_IMAGE_USAGE_SAMPLED_BIT: VkImageUsageFlags = 0x00000004;
+
+const VkMemoryPropertyFlags = u32;
+const VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: VkMemoryPropertyFlags = 0x00000001;
+const VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: VkMemoryPropertyFlags = 0x00000002;
+const VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: VkMemoryPropertyFlags = 0x00000004;
+
+const VkBufferUsageFlags = u32;
+const VK_BUFFER_USAGE_TRANSFER_SRC_BIT: VkBufferUsageFlags = 0x00000001;
+const VK_BUFFER_USAGE_VERTEX_BUFFER_BIT: VkBufferUsageFlags = 0x00000080;
+
+const VkSharingMode = enum(i32) {
+    VK_SHARING_MODE_EXCLUSIVE = 0,
+    VK_SHARING_MODE_CONCURRENT = 1,
+};
+
+const VkFilter = enum(i32) {
+    VK_FILTER_NEAREST = 0,
+    VK_FILTER_LINEAR = 1,
+};
+
+const VkSamplerMipmapMode = enum(i32) {
+    VK_SAMPLER_MIPMAP_MODE_NEAREST = 0,
+    VK_SAMPLER_MIPMAP_MODE_LINEAR = 1,
+};
+
+const VkSamplerAddressMode = enum(i32) {
+    VK_SAMPLER_ADDRESS_MODE_REPEAT = 0,
+    VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT = 1,
+    VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE = 2,
+    VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER = 3,
+};
+
+const VkBorderColor = enum(i32) {
+    VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK = 0,
+    VK_BORDER_COLOR_INT_TRANSPARENT_BLACK = 1,
+    VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK = 2,
+    VK_BORDER_COLOR_INT_OPAQUE_BLACK = 3,
+    VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE = 4,
+    VK_BORDER_COLOR_INT_OPAQUE_WHITE = 5,
+};
+
+const VkDescriptorType = enum(i32) {
+    VK_DESCRIPTOR_TYPE_SAMPLER = 0,
+    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER = 1,
+    VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE = 2,
+    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE = 3,
+    VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER = 4,
+    VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER = 5,
+    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER = 6,
+    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER = 7,
+    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC = 8,
+    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC = 9,
+    VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT = 10,
+};
+
+const VkVertexInputRate = enum(i32) {
+    VK_VERTEX_INPUT_RATE_VERTEX = 0,
+    VK_VERTEX_INPUT_RATE_INSTANCE = 1,
+};
+
+// Additional pipeline stage flags
+const VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT: VkPipelineStageFlags = 0x00000001;
+const VK_PIPELINE_STAGE_TRANSFER_BIT: VkPipelineStageFlags = 0x00001000;
+
+// Additional access flags
+const VK_ACCESS_TRANSFER_WRITE_BIT: VkAccessFlags = 0x00001000;
+const VK_ACCESS_SHADER_READ_BIT: VkAccessFlags = 0x00000020;
 
 // Function pointer types
 const PFN_vkVoidFunction = ?*const fn () callconv(.c) void;
@@ -746,6 +839,193 @@ const VkGraphicsPipelineCreateInfo = extern struct {
     basePipelineIndex: i32,
 };
 
+// Image create info
+const VkImageCreateInfo = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    flags: u32,
+    imageType: VkImageType,
+    format: VkFormat,
+    extent: VkExtent3D,
+    mipLevels: u32,
+    arrayLayers: u32,
+    samples: VkSampleCountFlagBits,
+    tiling: VkImageTiling,
+    usage: VkImageUsageFlags,
+    sharingMode: VkSharingMode,
+    queueFamilyIndexCount: u32,
+    pQueueFamilyIndices: ?[*]const u32,
+    initialLayout: VkImageLayout,
+};
+
+// Buffer create info
+const VkBufferCreateInfo = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    flags: u32,
+    size: u64,
+    usage: VkBufferUsageFlags,
+    sharingMode: VkSharingMode,
+    queueFamilyIndexCount: u32,
+    pQueueFamilyIndices: ?[*]const u32,
+};
+
+// Memory allocate info
+const VkMemoryAllocateInfo = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    allocationSize: u64,
+    memoryTypeIndex: u32,
+};
+
+// Memory requirements
+const VkMemoryRequirements = extern struct {
+    size: u64,
+    alignment: u64,
+    memoryTypeBits: u32,
+};
+
+// Physical device memory properties
+const VkMemoryType = extern struct {
+    propertyFlags: VkMemoryPropertyFlags,
+    heapIndex: u32,
+};
+
+const VkMemoryHeap = extern struct {
+    size: u64,
+    flags: u32,
+};
+
+const VK_MAX_MEMORY_TYPES = 32;
+const VK_MAX_MEMORY_HEAPS = 16;
+
+const VkPhysicalDeviceMemoryProperties = extern struct {
+    memoryTypeCount: u32,
+    memoryTypes: [VK_MAX_MEMORY_TYPES]VkMemoryType,
+    memoryHeapCount: u32,
+    memoryHeaps: [VK_MAX_MEMORY_HEAPS]VkMemoryHeap,
+};
+
+// Sampler create info
+const VkSamplerCreateInfo = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    flags: u32,
+    magFilter: VkFilter,
+    minFilter: VkFilter,
+    mipmapMode: VkSamplerMipmapMode,
+    addressModeU: VkSamplerAddressMode,
+    addressModeV: VkSamplerAddressMode,
+    addressModeW: VkSamplerAddressMode,
+    mipLodBias: f32,
+    anisotropyEnable: u32,
+    maxAnisotropy: f32,
+    compareEnable: u32,
+    compareOp: i32, // VkCompareOp
+    minLod: f32,
+    maxLod: f32,
+    borderColor: VkBorderColor,
+    unnormalizedCoordinates: u32,
+};
+
+// Descriptor set layout binding
+const VkDescriptorSetLayoutBinding = extern struct {
+    binding: u32,
+    descriptorType: VkDescriptorType,
+    descriptorCount: u32,
+    stageFlags: u32, // VkShaderStageFlags
+    pImmutableSamplers: ?[*]const VkSampler,
+};
+
+// Descriptor set layout create info
+const VkDescriptorSetLayoutCreateInfo = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    flags: u32,
+    bindingCount: u32,
+    pBindings: ?[*]const VkDescriptorSetLayoutBinding,
+};
+
+// Descriptor pool size
+const VkDescriptorPoolSize = extern struct {
+    type: VkDescriptorType,
+    descriptorCount: u32,
+};
+
+// Descriptor pool create info
+const VkDescriptorPoolCreateInfo = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    flags: u32,
+    maxSets: u32,
+    poolSizeCount: u32,
+    pPoolSizes: ?[*]const VkDescriptorPoolSize,
+};
+
+// Descriptor set allocate info
+const VkDescriptorSetAllocateInfo = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    descriptorPool: VkDescriptorPool,
+    descriptorSetCount: u32,
+    pSetLayouts: ?[*]const VkDescriptorSetLayout,
+};
+
+// Descriptor image info
+const VkDescriptorImageInfo = extern struct {
+    sampler: VkSampler,
+    imageView: VkImageView,
+    imageLayout: VkImageLayout,
+};
+
+// Write descriptor set
+const VkWriteDescriptorSet = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    dstSet: VkDescriptorSet,
+    dstBinding: u32,
+    dstArrayElement: u32,
+    descriptorCount: u32,
+    descriptorType: VkDescriptorType,
+    pImageInfo: ?[*]const VkDescriptorImageInfo,
+    pBufferInfo: ?*const anyopaque,
+    pTexelBufferView: ?*const anyopaque,
+};
+
+// Image subresource layers for copy operations
+const VkImageSubresourceLayers = extern struct {
+    aspectMask: VkImageAspectFlags,
+    mipLevel: u32,
+    baseArrayLayer: u32,
+    layerCount: u32,
+};
+
+// Buffer image copy
+const VkBufferImageCopy = extern struct {
+    bufferOffset: u64,
+    bufferRowLength: u32,
+    bufferImageHeight: u32,
+    imageSubresource: VkImageSubresourceLayers,
+    imageOffset: extern struct { x: i32, y: i32, z: i32 },
+    imageExtent: VkExtent3D,
+};
+
+// Image memory barrier
+const VkImageMemoryBarrier = extern struct {
+    sType: VkStructureType,
+    pNext: ?*const anyopaque,
+    srcAccessMask: VkAccessFlags,
+    dstAccessMask: VkAccessFlags,
+    oldLayout: VkImageLayout,
+    newLayout: VkImageLayout,
+    srcQueueFamilyIndex: u32,
+    dstQueueFamilyIndex: u32,
+    image: VkImage,
+    subresourceRange: VkImageSubresourceRange,
+};
+
+const VK_QUEUE_FAMILY_IGNORED: u32 = 0xFFFFFFFF;
+
 // Additional function pointer types for rendering
 const PFN_vkCreateSwapchainKHR = *const fn (VkDevice, *const VkSwapchainCreateInfoKHR, ?*const anyopaque, *VkSwapchainKHR) callconv(.c) VkResult;
 const PFN_vkDestroySwapchainKHR = *const fn (VkDevice, VkSwapchainKHR, ?*const anyopaque) callconv(.c) void;
@@ -781,6 +1061,33 @@ const PFN_vkCreateGraphicsPipelines = *const fn (VkDevice, u64, u32, [*]const Vk
 const PFN_vkDestroyPipeline = *const fn (VkDevice, VkPipeline, ?*const anyopaque) callconv(.c) void;
 const PFN_vkGetDeviceQueue = *const fn (VkDevice, u32, u32, *VkQueue) callconv(.c) void;
 
+// Additional function pointers for images, buffers, memory, samplers, descriptors
+const PFN_vkCreateImage = *const fn (VkDevice, *const VkImageCreateInfo, ?*const anyopaque, *VkImage) callconv(.c) VkResult;
+const PFN_vkDestroyImage = *const fn (VkDevice, VkImage, ?*const anyopaque) callconv(.c) void;
+const PFN_vkCreateBuffer = *const fn (VkDevice, *const VkBufferCreateInfo, ?*const anyopaque, *VkBuffer) callconv(.c) VkResult;
+const PFN_vkDestroyBuffer = *const fn (VkDevice, VkBuffer, ?*const anyopaque) callconv(.c) void;
+const PFN_vkAllocateMemory = *const fn (VkDevice, *const VkMemoryAllocateInfo, ?*const anyopaque, *VkDeviceMemory) callconv(.c) VkResult;
+const PFN_vkFreeMemory = *const fn (VkDevice, VkDeviceMemory, ?*const anyopaque) callconv(.c) void;
+const PFN_vkMapMemory = *const fn (VkDevice, VkDeviceMemory, u64, u64, u32, **anyopaque) callconv(.c) VkResult;
+const PFN_vkUnmapMemory = *const fn (VkDevice, VkDeviceMemory) callconv(.c) void;
+const PFN_vkBindImageMemory = *const fn (VkDevice, VkImage, VkDeviceMemory, u64) callconv(.c) VkResult;
+const PFN_vkBindBufferMemory = *const fn (VkDevice, VkBuffer, VkDeviceMemory, u64) callconv(.c) VkResult;
+const PFN_vkGetImageMemoryRequirements = *const fn (VkDevice, VkImage, *VkMemoryRequirements) callconv(.c) void;
+const PFN_vkGetBufferMemoryRequirements = *const fn (VkDevice, VkBuffer, *VkMemoryRequirements) callconv(.c) void;
+const PFN_vkGetPhysicalDeviceMemoryProperties = *const fn (VkPhysicalDevice, *VkPhysicalDeviceMemoryProperties) callconv(.c) void;
+const PFN_vkCreateSampler = *const fn (VkDevice, *const VkSamplerCreateInfo, ?*const anyopaque, *VkSampler) callconv(.c) VkResult;
+const PFN_vkDestroySampler = *const fn (VkDevice, VkSampler, ?*const anyopaque) callconv(.c) void;
+const PFN_vkCreateDescriptorSetLayout = *const fn (VkDevice, *const VkDescriptorSetLayoutCreateInfo, ?*const anyopaque, *VkDescriptorSetLayout) callconv(.c) VkResult;
+const PFN_vkDestroyDescriptorSetLayout = *const fn (VkDevice, VkDescriptorSetLayout, ?*const anyopaque) callconv(.c) void;
+const PFN_vkCreateDescriptorPool = *const fn (VkDevice, *const VkDescriptorPoolCreateInfo, ?*const anyopaque, *VkDescriptorPool) callconv(.c) VkResult;
+const PFN_vkDestroyDescriptorPool = *const fn (VkDevice, VkDescriptorPool, ?*const anyopaque) callconv(.c) void;
+const PFN_vkAllocateDescriptorSets = *const fn (VkDevice, *const VkDescriptorSetAllocateInfo, *VkDescriptorSet) callconv(.c) VkResult;
+const PFN_vkUpdateDescriptorSets = *const fn (VkDevice, u32, [*]const VkWriteDescriptorSet, u32, ?[*]const anyopaque) callconv(.c) void;
+const PFN_vkCmdCopyBufferToImage = *const fn (VkCommandBuffer, VkBuffer, VkImage, VkImageLayout, u32, [*]const VkBufferImageCopy) callconv(.c) void;
+const PFN_vkCmdPipelineBarrier = *const fn (VkCommandBuffer, VkPipelineStageFlags, VkPipelineStageFlags, VkDependencyFlags, u32, ?[*]const anyopaque, u32, ?[*]const anyopaque, u32, ?[*]const VkImageMemoryBarrier) callconv(.c) void;
+const PFN_vkCmdBindDescriptorSets = *const fn (VkCommandBuffer, VkPipelineBindPoint, VkPipelineLayout, u32, u32, [*]const VkDescriptorSet, u32, ?[*]const u32) callconv(.c) void;
+const PFN_vkCmdBindVertexBuffers = *const fn (VkCommandBuffer, u32, u32, [*]const VkBuffer, [*]const u64) callconv(.c) void;
+
 // Instance data storage
 const InstanceData = struct {
     instance: VkInstance,
@@ -808,6 +1115,26 @@ const SwapchainData = struct {
     graphics_queue: VkQueue = null,
     graphics_queue_family: u32 = 0,
     initialized: bool = false,
+
+    // Font texture resources
+    font_image: VkImage = 0,
+    font_image_view: VkImageView = 0,
+    font_sampler: VkSampler = 0,
+    font_memory: VkDeviceMemory = 0,
+
+    // Descriptor resources
+    descriptor_set_layout: VkDescriptorSetLayout = 0,
+    descriptor_pool: VkDescriptorPool = 0,
+    descriptor_set: VkDescriptorSet = 0,
+
+    // Vertex buffer for HUD rendering
+    vertex_buffer: VkBuffer = 0,
+    vertex_memory: VkDeviceMemory = 0,
+    vertex_mapped: ?*anyopaque = null, // Persistently mapped for CPU writes
+    vertex_capacity: u32 = 0, // Max vertices
+    vertex_count: u32 = 0, // Current frame's vertices
+
+    font_initialized: bool = false,
 };
 
 // Device data storage - includes all function pointers and swapchain data
@@ -855,6 +1182,41 @@ const DeviceData = struct {
     create_graphics_pipelines: ?PFN_vkCreateGraphicsPipelines = null,
     destroy_pipeline: ?PFN_vkDestroyPipeline = null,
     get_device_queue: ?PFN_vkGetDeviceQueue = null,
+
+    // Image, buffer, and memory functions
+    create_image: ?PFN_vkCreateImage = null,
+    destroy_image: ?PFN_vkDestroyImage = null,
+    create_buffer: ?PFN_vkCreateBuffer = null,
+    destroy_buffer: ?PFN_vkDestroyBuffer = null,
+    allocate_memory: ?PFN_vkAllocateMemory = null,
+    free_memory: ?PFN_vkFreeMemory = null,
+    map_memory: ?PFN_vkMapMemory = null,
+    unmap_memory: ?PFN_vkUnmapMemory = null,
+    bind_image_memory: ?PFN_vkBindImageMemory = null,
+    bind_buffer_memory: ?PFN_vkBindBufferMemory = null,
+    get_image_memory_requirements: ?PFN_vkGetImageMemoryRequirements = null,
+    get_buffer_memory_requirements: ?PFN_vkGetBufferMemoryRequirements = null,
+    get_physical_device_memory_properties: ?PFN_vkGetPhysicalDeviceMemoryProperties = null,
+
+    // Sampler and descriptor functions
+    create_sampler: ?PFN_vkCreateSampler = null,
+    destroy_sampler: ?PFN_vkDestroySampler = null,
+    create_descriptor_set_layout: ?PFN_vkCreateDescriptorSetLayout = null,
+    destroy_descriptor_set_layout: ?PFN_vkDestroyDescriptorSetLayout = null,
+    create_descriptor_pool: ?PFN_vkCreateDescriptorPool = null,
+    destroy_descriptor_pool: ?PFN_vkDestroyDescriptorPool = null,
+    allocate_descriptor_sets: ?PFN_vkAllocateDescriptorSets = null,
+    update_descriptor_sets: ?PFN_vkUpdateDescriptorSets = null,
+
+    // Additional command buffer functions
+    cmd_copy_buffer_to_image: ?PFN_vkCmdCopyBufferToImage = null,
+    cmd_pipeline_barrier: ?PFN_vkCmdPipelineBarrier = null,
+    cmd_bind_descriptor_sets: ?PFN_vkCmdBindDescriptorSets = null,
+    cmd_bind_vertex_buffers: ?PFN_vkCmdBindVertexBuffers = null,
+
+    // Physical device memory properties cache
+    memory_properties: VkPhysicalDeviceMemoryProperties = undefined,
+    memory_properties_valid: bool = false,
 
     // Swapchain data (one per swapchain, but we only track one for simplicity)
     swapchain_data: SwapchainData = .{},
@@ -1169,6 +1531,44 @@ export fn nvhud_CreateDevice(
     device_data.destroy_pipeline = @ptrCast(next_gdpa(pDevice.*, "vkDestroyPipeline"));
     device_data.get_device_queue = @ptrCast(next_gdpa(pDevice.*, "vkGetDeviceQueue"));
 
+    // Load image, buffer, and memory functions
+    device_data.create_image = @ptrCast(next_gdpa(pDevice.*, "vkCreateImage"));
+    device_data.destroy_image = @ptrCast(next_gdpa(pDevice.*, "vkDestroyImage"));
+    device_data.create_buffer = @ptrCast(next_gdpa(pDevice.*, "vkCreateBuffer"));
+    device_data.destroy_buffer = @ptrCast(next_gdpa(pDevice.*, "vkDestroyBuffer"));
+    device_data.allocate_memory = @ptrCast(next_gdpa(pDevice.*, "vkAllocateMemory"));
+    device_data.free_memory = @ptrCast(next_gdpa(pDevice.*, "vkFreeMemory"));
+    device_data.map_memory = @ptrCast(next_gdpa(pDevice.*, "vkMapMemory"));
+    device_data.unmap_memory = @ptrCast(next_gdpa(pDevice.*, "vkUnmapMemory"));
+    device_data.bind_image_memory = @ptrCast(next_gdpa(pDevice.*, "vkBindImageMemory"));
+    device_data.bind_buffer_memory = @ptrCast(next_gdpa(pDevice.*, "vkBindBufferMemory"));
+    device_data.get_image_memory_requirements = @ptrCast(next_gdpa(pDevice.*, "vkGetImageMemoryRequirements"));
+    device_data.get_buffer_memory_requirements = @ptrCast(next_gdpa(pDevice.*, "vkGetBufferMemoryRequirements"));
+
+    // Load sampler and descriptor functions
+    device_data.create_sampler = @ptrCast(next_gdpa(pDevice.*, "vkCreateSampler"));
+    device_data.destroy_sampler = @ptrCast(next_gdpa(pDevice.*, "vkDestroySampler"));
+    device_data.create_descriptor_set_layout = @ptrCast(next_gdpa(pDevice.*, "vkCreateDescriptorSetLayout"));
+    device_data.destroy_descriptor_set_layout = @ptrCast(next_gdpa(pDevice.*, "vkDestroyDescriptorSetLayout"));
+    device_data.create_descriptor_pool = @ptrCast(next_gdpa(pDevice.*, "vkCreateDescriptorPool"));
+    device_data.destroy_descriptor_pool = @ptrCast(next_gdpa(pDevice.*, "vkDestroyDescriptorPool"));
+    device_data.allocate_descriptor_sets = @ptrCast(next_gdpa(pDevice.*, "vkAllocateDescriptorSets"));
+    device_data.update_descriptor_sets = @ptrCast(next_gdpa(pDevice.*, "vkUpdateDescriptorSets"));
+
+    // Load additional command buffer functions
+    device_data.cmd_copy_buffer_to_image = @ptrCast(next_gdpa(pDevice.*, "vkCmdCopyBufferToImage"));
+    device_data.cmd_pipeline_barrier = @ptrCast(next_gdpa(pDevice.*, "vkCmdPipelineBarrier"));
+    device_data.cmd_bind_descriptor_sets = @ptrCast(next_gdpa(pDevice.*, "vkCmdBindDescriptorSets"));
+    device_data.cmd_bind_vertex_buffers = @ptrCast(next_gdpa(pDevice.*, "vkCmdBindVertexBuffers"));
+
+    // Load physical device memory properties (from instance)
+    const get_mem_props: ?PFN_vkGetPhysicalDeviceMemoryProperties = @ptrCast(instance_data.get_instance_proc_addr(instance_data.instance, "vkGetPhysicalDeviceMemoryProperties"));
+    device_data.get_physical_device_memory_properties = get_mem_props;
+    if (get_mem_props) |get_props| {
+        get_props(physicalDevice, &device_data.memory_properties);
+        device_data.memory_properties_valid = true;
+    }
+
     debugLog("Device created, loaded {} rendering functions", .{@as(u32, if (device_data.create_swapchain != null) 1 else 0) + @as(u32, if (device_data.create_render_pass != null) 1 else 0)});
 
     device_map.put(@intFromPtr(pDevice.*), device_data) catch
@@ -1197,12 +1597,112 @@ fn getTimeNs() u64 {
     return @as(u64, @intCast(ts.sec)) * 1_000_000_000 + @as(u64, @intCast(ts.nsec));
 }
 
+// String buffer for formatted values
+var fmt_buf: [32][32]u8 = undefined;
+var fmt_idx: usize = 0;
+
+fn fmtValue(comptime fmt: []const u8, args: anytype) []const u8 {
+    if (fmt_idx >= fmt_buf.len) fmt_idx = 0;
+    const buf = &fmt_buf[fmt_idx];
+    fmt_idx += 1;
+    const result = std.fmt.bufPrint(buf, fmt, args) catch return "";
+    return result;
+}
+
+/// Generate HUD vertex data
+fn generateHudContent(sd: *SwapchainData) void {
+    sd.vertex_count = 0;
+    if (sd.vertex_mapped == null) return;
+    fmt_idx = 0;
+
+    const padding: f32 = 10.0;
+    const line_height: f32 = 18.0;
+    const hud_width: f32 = 160.0;
+    const scale: f32 = 1.0;
+
+    // Calculate HUD height based on content
+    var line_count: f32 = 0;
+    if (fps > 0) line_count += 1;
+    if (cached_temp > 0) line_count += 1;
+    if (cached_gpu_util > 0) line_count += 1;
+    if (cached_power > 0) line_count += 1;
+    if (cached_vram_total > 0) line_count += 1;
+    line_count = @max(line_count, 3); // Minimum 3 lines
+
+    const hud_height = line_count * line_height + padding * 2;
+
+    // Background rectangle
+    addRect(sd, padding, padding, hud_width, hud_height, 0.1, 0.1, 0.1, 0.85);
+
+    // Draw content
+    var y = padding + padding / 2;
+    const label_x = padding + 8;
+    const value_x = padding + 60;
+
+    // FPS
+    if (fps > 0) {
+        const fps_color: struct { r: f32, g: f32, b: f32 } = if (fps < 30)
+            .{ .r = 1.0, .g = 0.3, .b = 0.3 }
+        else if (fps < 60)
+            .{ .r = 1.0, .g = 0.8, .b = 0.3 }
+        else
+            .{ .r = 0.3, .g = 1.0, .b = 0.3 };
+
+        addText(sd, label_x, y, "FPS", 0.7, 0.7, 0.7, 1.0, scale);
+        addText(sd, value_x, y, fmtValue("{d}", .{fps}), fps_color.r, fps_color.g, fps_color.b, 1.0, scale);
+        y += line_height;
+    }
+
+    // GPU Temperature
+    if (cached_temp > 0) {
+        const temp_color: struct { r: f32, g: f32, b: f32 } = if (cached_temp >= 85)
+            .{ .r = 1.0, .g = 0.3, .b = 0.3 }
+        else if (cached_temp >= 75)
+            .{ .r = 1.0, .g = 0.8, .b = 0.3 }
+        else
+            .{ .r = 0.9, .g = 0.9, .b = 0.9 };
+
+        addText(sd, label_x, y, "GPU", 0.7, 0.7, 0.7, 1.0, scale);
+        addText(sd, value_x, y, fmtValue("{d}C", .{cached_temp}), temp_color.r, temp_color.g, temp_color.b, 1.0, scale);
+        y += line_height;
+    }
+
+    // GPU Utilization
+    if (cached_gpu_util > 0) {
+        addText(sd, label_x, y, "Load", 0.7, 0.7, 0.7, 1.0, scale);
+        addText(sd, value_x, y, fmtValue("{d}%", .{cached_gpu_util}), 0.9, 0.9, 0.9, 1.0, scale);
+        y += line_height;
+    }
+
+    // Power
+    if (cached_power > 0) {
+        addText(sd, label_x, y, "Power", 0.7, 0.7, 0.7, 1.0, scale);
+        addText(sd, value_x, y, fmtValue("{d}W", .{cached_power}), 0.9, 0.9, 0.9, 1.0, scale);
+        y += line_height;
+    }
+
+    // VRAM
+    if (cached_vram_total > 0) {
+        const vram_mb = cached_vram_used / (1024 * 1024);
+        const total_mb = cached_vram_total / (1024 * 1024);
+        addText(sd, label_x, y, "VRAM", 0.7, 0.7, 0.7, 1.0, scale);
+        addText(sd, value_x, y, fmtValue("{d}/{d}M", .{ vram_mb, total_mb }), 0.9, 0.9, 0.9, 1.0, scale);
+        y += line_height;
+    }
+}
+
 /// Record overlay rendering commands for a frame
 fn recordOverlayCommands(data: *DeviceData, image_index: u32) bool {
     const sd = &data.swapchain_data;
     if (!sd.initialized or image_index >= sd.image_count) return false;
 
     const cmd = sd.command_buffers[image_index] orelse return false;
+
+    // Generate HUD content (fills vertex buffer)
+    generateHudContent(sd);
+
+    // Nothing to draw
+    if (sd.vertex_count == 0) return true;
 
     // Reset and begin command buffer
     if (data.reset_command_buffer) |reset| {
@@ -1265,19 +1765,36 @@ fn recordOverlayCommands(data: *DeviceData, image_index: u32) bool {
         set_sc(cmd, 0, 1, @ptrCast(&scissor));
     }
 
-    // Push constants for a solid colored rectangle
-    // Draw HUD background rectangle in top-left
-    const push_constants = OverlayPushConstants{
-        .color = .{ 0.1, 0.1, 0.1, 0.85 }, // Dark semi-transparent background
+    // Push screen dimensions
+    const push_constants = TextPushConstants{
+        .screen_width = @floatFromInt(sd.extent.width),
+        .screen_height = @floatFromInt(sd.extent.height),
     };
 
     if (data.cmd_push_constants) |push| {
-        push(cmd, sd.pipeline_layout, @intFromEnum(VkShaderStageFlagBits.VK_SHADER_STAGE_FRAGMENT_BIT), 0, @sizeOf(OverlayPushConstants), @ptrCast(&push_constants));
+        push(cmd, sd.pipeline_layout, @intFromEnum(VkShaderStageFlagBits.VK_SHADER_STAGE_VERTEX_BIT), 0, @sizeOf(TextPushConstants), @ptrCast(&push_constants));
     }
 
-    // Draw fullscreen triangle (shader will clip to overlay area)
+    // Bind descriptor set (for font texture)
+    if (sd.descriptor_set != 0) {
+        if (data.cmd_bind_descriptor_sets) |bind_ds| {
+            const sets = [_]VkDescriptorSet{sd.descriptor_set};
+            bind_ds(cmd, .VK_PIPELINE_BIND_POINT_GRAPHICS, sd.pipeline_layout, 0, 1, @ptrCast(&sets), 0, null);
+        }
+    }
+
+    // Bind vertex buffer
+    if (sd.vertex_buffer != 0) {
+        if (data.cmd_bind_vertex_buffers) |bind_vb| {
+            const buffers = [_]VkBuffer{sd.vertex_buffer};
+            const offsets = [_]u64{0};
+            bind_vb(cmd, 0, 1, @ptrCast(&buffers), @ptrCast(&offsets));
+        }
+    }
+
+    // Draw HUD
     if (data.cmd_draw) |draw| {
-        draw(cmd, 3, 1, 0, 0);
+        draw(cmd, sd.vertex_count, 1, 0, 0);
     }
 
     // End render pass
@@ -1452,6 +1969,411 @@ const fragment_shader_spv = [_]u32{
 const OverlayPushConstants = extern struct {
     color: [4]f32, // RGBA color
 };
+
+// Push constants for text rendering (screen dimensions for NDC conversion)
+const TextPushConstants = extern struct {
+    screen_width: f32,
+    screen_height: f32,
+    _reserved: [2]f32 = .{ 0, 0 },
+};
+
+// Vertex structure for HUD primitives (position, UV, color)
+// Size: 32 bytes (8 floats)
+const HudVertex = extern struct {
+    // Position in screen space (pixels)
+    x: f32,
+    y: f32,
+    // UV coordinates for font texture (0-1)
+    u: f32,
+    v: f32,
+    // Color RGBA (normalized 0-1)
+    r: f32,
+    g: f32,
+    b: f32,
+    a: f32,
+};
+
+// Maximum vertices per frame (6 per character, ~500 chars = 3000 vertices)
+const MAX_VERTICES: u32 = 4096;
+const VERTEX_BUFFER_SIZE: u64 = MAX_VERTICES * @sizeOf(HudVertex);
+
+/// Find suitable memory type for allocation
+fn findMemoryType(data: *DeviceData, type_bits: u32, properties: VkMemoryPropertyFlags) ?u32 {
+    if (!data.memory_properties_valid) return null;
+
+    for (0..data.memory_properties.memoryTypeCount) |i| {
+        const idx: u32 = @intCast(i);
+        if ((type_bits & (@as(u32, 1) << @intCast(idx))) != 0) {
+            if ((data.memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return idx;
+            }
+        }
+    }
+    return null;
+}
+
+/// Create font texture and sampler
+fn createFontResources(data: *DeviceData) bool {
+    const sd = &data.swapchain_data;
+    if (sd.font_initialized) return true;
+
+    // Need these functions
+    if (data.create_image == null or data.create_sampler == null or
+        data.allocate_memory == null or data.bind_image_memory == null or
+        data.create_image_view == null or data.get_image_memory_requirements == null)
+        return false;
+
+    debugLog("Creating font texture {}x{}", .{ font.texture_width, font.texture_height });
+
+    // Create font image
+    const image_info = VkImageCreateInfo{
+        .sType = .VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = null,
+        .flags = 0,
+        .imageType = .VK_IMAGE_TYPE_2D,
+        .format = .VK_FORMAT_R8_UNORM,
+        .extent = .{
+            .width = font.texture_width,
+            .height = font.texture_height,
+            .depth = 1,
+        },
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = .VK_SAMPLE_COUNT_1_BIT,
+        .tiling = .VK_IMAGE_TILING_LINEAR, // Linear for direct CPU upload
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode = .VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = null,
+        .initialLayout = .VK_IMAGE_LAYOUT_PREINITIALIZED,
+    };
+
+    if (data.create_image.?(data.device, &image_info, null, &sd.font_image) != .VK_SUCCESS) {
+        debugLog("Failed to create font image", .{});
+        return false;
+    }
+
+    // Get memory requirements
+    var mem_reqs: VkMemoryRequirements = undefined;
+    data.get_image_memory_requirements.?(data.device, sd.font_image, &mem_reqs);
+
+    // Find host-visible memory type for linear tiling
+    const mem_type_idx = findMemoryType(
+        data,
+        mem_reqs.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    ) orelse {
+        debugLog("No suitable memory type for font", .{});
+        data.destroy_image.?(data.device, sd.font_image, null);
+        sd.font_image = 0;
+        return false;
+    };
+
+    // Allocate memory
+    const alloc_info = VkMemoryAllocateInfo{
+        .sType = .VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = null,
+        .allocationSize = mem_reqs.size,
+        .memoryTypeIndex = mem_type_idx,
+    };
+
+    if (data.allocate_memory.?(data.device, &alloc_info, null, &sd.font_memory) != .VK_SUCCESS) {
+        debugLog("Failed to allocate font memory", .{});
+        data.destroy_image.?(data.device, sd.font_image, null);
+        sd.font_image = 0;
+        return false;
+    }
+
+    // Bind memory
+    if (data.bind_image_memory.?(data.device, sd.font_image, sd.font_memory, 0) != .VK_SUCCESS) {
+        debugLog("Failed to bind font memory", .{});
+        data.free_memory.?(data.device, sd.font_memory, null);
+        data.destroy_image.?(data.device, sd.font_image, null);
+        sd.font_memory = 0;
+        sd.font_image = 0;
+        return false;
+    }
+
+    // Map and copy font data
+    if (data.map_memory) |map_fn| {
+        var mapped: *anyopaque = undefined;
+        if (map_fn(data.device, sd.font_memory, 0, mem_reqs.size, 0, &mapped) == .VK_SUCCESS) {
+            const font_data = font.generateTextureR8();
+            const dest: [*]u8 = @ptrCast(mapped);
+            @memcpy(dest[0..font_data.len], &font_data);
+            data.unmap_memory.?(data.device, sd.font_memory);
+        }
+    }
+
+    // Create image view
+    const view_info = VkImageViewCreateInfo{
+        .sType = .VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = null,
+        .flags = 0,
+        .image = sd.font_image,
+        .viewType = .VK_IMAGE_VIEW_TYPE_2D,
+        .format = .VK_FORMAT_R8_UNORM,
+        .components = .{
+            .r = .VK_COMPONENT_SWIZZLE_R,
+            .g = .VK_COMPONENT_SWIZZLE_R,
+            .b = .VK_COMPONENT_SWIZZLE_R,
+            .a = .VK_COMPONENT_SWIZZLE_R,
+        },
+        .subresourceRange = .{
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+
+    if (data.create_image_view.?(data.device, &view_info, null, &sd.font_image_view) != .VK_SUCCESS) {
+        debugLog("Failed to create font image view", .{});
+        return false;
+    }
+
+    // Create sampler (nearest filtering for crisp text)
+    const sampler_info = VkSamplerCreateInfo{
+        .sType = .VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .pNext = null,
+        .flags = 0,
+        .magFilter = .VK_FILTER_NEAREST,
+        .minFilter = .VK_FILTER_NEAREST,
+        .mipmapMode = .VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .addressModeU = .VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeV = .VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW = .VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .mipLodBias = 0.0,
+        .anisotropyEnable = 0,
+        .maxAnisotropy = 1.0,
+        .compareEnable = 0,
+        .compareOp = 0,
+        .minLod = 0.0,
+        .maxLod = 0.0,
+        .borderColor = .VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+        .unnormalizedCoordinates = 0,
+    };
+
+    if (data.create_sampler.?(data.device, &sampler_info, null, &sd.font_sampler) != .VK_SUCCESS) {
+        debugLog("Failed to create font sampler", .{});
+        return false;
+    }
+
+    sd.font_initialized = true;
+    debugLog("Font resources created successfully", .{});
+    return true;
+}
+
+/// Create descriptor set layout, pool, and set for font texture
+fn createDescriptorResources(data: *DeviceData) bool {
+    const sd = &data.swapchain_data;
+
+    if (data.create_descriptor_set_layout == null or
+        data.create_descriptor_pool == null or
+        data.allocate_descriptor_sets == null or
+        data.update_descriptor_sets == null)
+        return false;
+
+    // Create descriptor set layout (binding 0 = combined image sampler)
+    const binding = VkDescriptorSetLayoutBinding{
+        .binding = 0,
+        .descriptorType = .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = 1,
+        .stageFlags = @intFromEnum(VkShaderStageFlagBits.VK_SHADER_STAGE_FRAGMENT_BIT),
+        .pImmutableSamplers = null,
+    };
+
+    const layout_info = VkDescriptorSetLayoutCreateInfo{
+        .sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .pNext = null,
+        .flags = 0,
+        .bindingCount = 1,
+        .pBindings = @ptrCast(&binding),
+    };
+
+    if (data.create_descriptor_set_layout.?(data.device, &layout_info, null, &sd.descriptor_set_layout) != .VK_SUCCESS) {
+        debugLog("Failed to create descriptor set layout", .{});
+        return false;
+    }
+
+    // Create descriptor pool
+    const pool_size = VkDescriptorPoolSize{
+        .type = .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = 1,
+    };
+
+    const pool_info = VkDescriptorPoolCreateInfo{
+        .sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .pNext = null,
+        .flags = 0,
+        .maxSets = 1,
+        .poolSizeCount = 1,
+        .pPoolSizes = @ptrCast(&pool_size),
+    };
+
+    if (data.create_descriptor_pool.?(data.device, &pool_info, null, &sd.descriptor_pool) != .VK_SUCCESS) {
+        debugLog("Failed to create descriptor pool", .{});
+        return false;
+    }
+
+    // Allocate descriptor set
+    const alloc_info = VkDescriptorSetAllocateInfo{
+        .sType = .VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .pNext = null,
+        .descriptorPool = sd.descriptor_pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = @ptrCast(&sd.descriptor_set_layout),
+    };
+
+    if (data.allocate_descriptor_sets.?(data.device, &alloc_info, &sd.descriptor_set) != .VK_SUCCESS) {
+        debugLog("Failed to allocate descriptor set", .{});
+        return false;
+    }
+
+    // Update descriptor set to point to font texture
+    const image_info = VkDescriptorImageInfo{
+        .sampler = sd.font_sampler,
+        .imageView = sd.font_image_view,
+        .imageLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    const write = VkWriteDescriptorSet{
+        .sType = .VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = null,
+        .dstSet = sd.descriptor_set,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = .VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo = @ptrCast(&image_info),
+        .pBufferInfo = null,
+        .pTexelBufferView = null,
+    };
+
+    data.update_descriptor_sets.?(data.device, 1, @ptrCast(&write), 0, null);
+
+    debugLog("Descriptor resources created", .{});
+    return true;
+}
+
+/// Create vertex buffer for HUD rendering
+fn createVertexBuffer(data: *DeviceData) bool {
+    const sd = &data.swapchain_data;
+
+    if (data.create_buffer == null or data.allocate_memory == null or
+        data.bind_buffer_memory == null or data.get_buffer_memory_requirements == null)
+        return false;
+
+    const buffer_info = VkBufferCreateInfo{
+        .sType = .VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = null,
+        .flags = 0,
+        .size = VERTEX_BUFFER_SIZE,
+        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        .sharingMode = .VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = null,
+    };
+
+    if (data.create_buffer.?(data.device, &buffer_info, null, &sd.vertex_buffer) != .VK_SUCCESS) {
+        debugLog("Failed to create vertex buffer", .{});
+        return false;
+    }
+
+    // Get memory requirements
+    var mem_reqs: VkMemoryRequirements = undefined;
+    data.get_buffer_memory_requirements.?(data.device, sd.vertex_buffer, &mem_reqs);
+
+    // Find host-visible, coherent memory
+    const mem_type_idx = findMemoryType(
+        data,
+        mem_reqs.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    ) orelse {
+        debugLog("No suitable memory type for vertex buffer", .{});
+        data.destroy_buffer.?(data.device, sd.vertex_buffer, null);
+        sd.vertex_buffer = 0;
+        return false;
+    };
+
+    const alloc_info = VkMemoryAllocateInfo{
+        .sType = .VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = null,
+        .allocationSize = mem_reqs.size,
+        .memoryTypeIndex = mem_type_idx,
+    };
+
+    if (data.allocate_memory.?(data.device, &alloc_info, null, &sd.vertex_memory) != .VK_SUCCESS) {
+        debugLog("Failed to allocate vertex memory", .{});
+        data.destroy_buffer.?(data.device, sd.vertex_buffer, null);
+        sd.vertex_buffer = 0;
+        return false;
+    }
+
+    if (data.bind_buffer_memory.?(data.device, sd.vertex_buffer, sd.vertex_memory, 0) != .VK_SUCCESS) {
+        debugLog("Failed to bind vertex memory", .{});
+        return false;
+    }
+
+    // Persistently map the vertex buffer
+    if (data.map_memory) |map_fn| {
+        if (map_fn(data.device, sd.vertex_memory, 0, VERTEX_BUFFER_SIZE, 0, @ptrCast(&sd.vertex_mapped)) == .VK_SUCCESS) {
+            sd.vertex_capacity = MAX_VERTICES;
+            debugLog("Vertex buffer created and mapped", .{});
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/// Add a quad to the vertex buffer (6 vertices for 2 triangles)
+fn addQuad(sd: *SwapchainData, x: f32, y: f32, w: f32, h: f32, u0: f32, v0: f32, u1: f32, v1: f32, r: f32, g: f32, b: f32, a: f32) void {
+    if (sd.vertex_mapped == null) return;
+    if (sd.vertex_count + 6 > sd.vertex_capacity) return;
+
+    const verts: [*]HudVertex = @ptrCast(@alignCast(sd.vertex_mapped.?));
+    const base = sd.vertex_count;
+
+    // Triangle 1: top-left, top-right, bottom-left
+    verts[base + 0] = .{ .x = x, .y = y, .u = u0, .v = v0, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 1] = .{ .x = x + w, .y = y, .u = u1, .v = v0, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 2] = .{ .x = x, .y = y + h, .u = u0, .v = v1, .r = r, .g = g, .b = b, .a = a };
+
+    // Triangle 2: top-right, bottom-right, bottom-left
+    verts[base + 3] = .{ .x = x + w, .y = y, .u = u1, .v = v0, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 4] = .{ .x = x + w, .y = y + h, .u = u1, .v = v1, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 5] = .{ .x = x, .y = y + h, .u = u0, .v = v1, .r = r, .g = g, .b = b, .a = a };
+
+    sd.vertex_count += 6;
+}
+
+/// Add a solid rectangle (no texture)
+fn addRect(sd: *SwapchainData, x: f32, y: f32, w: f32, h: f32, r: f32, g: f32, b: f32, a: f32) void {
+    // Use UV (0,0) which should be a solid white pixel in the font texture
+    addQuad(sd, x, y, w, h, 0, 0, 0, 0, r, g, b, a);
+}
+
+/// Add text using the font atlas
+fn addText(sd: *SwapchainData, x: f32, y: f32, text: []const u8, r: f32, g: f32, b: f32, a: f32, scale: f32) void {
+    var cursor_x = x;
+    const char_w: f32 = @floatFromInt(font.char_width);
+    const char_h: f32 = @floatFromInt(font.char_height);
+    const scaled_w = char_w * scale;
+    const scaled_h = char_h * scale;
+
+    for (text) |c| {
+        if (c < 32 or c > 126) {
+            cursor_x += scaled_w;
+            continue;
+        }
+
+        const uv = font.getCharUV(c);
+        addQuad(sd, cursor_x, y, scaled_w, scaled_h, uv.u0, uv.v0, uv.u1, uv.v1, r, g, b, a);
+        cursor_x += scaled_w;
+    }
+}
 
 /// Create render pass for overlay (preserves game content)
 fn createOverlayRenderPass(data: *DeviceData) bool {
@@ -1686,15 +2608,45 @@ fn createOverlayPipeline(data: *DeviceData) bool {
         },
     };
 
-    // Vertex input (empty - fullscreen triangle)
+    // Vertex input - HudVertex: pos(2f), uv(2f), color(4f) = 32 bytes
+    const vertex_binding = VkVertexInputBindingDescription{
+        .binding = 0,
+        .stride = @sizeOf(HudVertex),
+        .inputRate = @intFromEnum(VkVertexInputRate.VK_VERTEX_INPUT_RATE_VERTEX),
+    };
+
+    const vertex_attributes = [_]VkVertexInputAttributeDescription{
+        // location 0: position (x, y)
+        .{
+            .location = 0,
+            .binding = 0,
+            .format = .VK_FORMAT_R32G32_SFLOAT,
+            .offset = 0,
+        },
+        // location 1: uv (u, v)
+        .{
+            .location = 1,
+            .binding = 0,
+            .format = .VK_FORMAT_R32G32_SFLOAT,
+            .offset = 8,
+        },
+        // location 2: color (r, g, b, a)
+        .{
+            .location = 2,
+            .binding = 0,
+            .format = .VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 16,
+        },
+    };
+
     const vertex_input_info = VkPipelineVertexInputStateCreateInfo{
         .sType = .VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .pNext = null,
         .flags = 0,
-        .vertexBindingDescriptionCount = 0,
-        .pVertexBindingDescriptions = null,
-        .vertexAttributeDescriptionCount = 0,
-        .pVertexAttributeDescriptions = null,
+        .vertexBindingDescriptionCount = 1,
+        .pVertexBindingDescriptions = @ptrCast(&vertex_binding),
+        .vertexAttributeDescriptionCount = 3,
+        .pVertexAttributeDescriptions = @ptrCast(&vertex_attributes),
     };
 
     // Input assembly
@@ -1780,19 +2732,23 @@ fn createOverlayPipeline(data: *DeviceData) bool {
         .pDynamicStates = &dynamic_states,
     };
 
-    // Pipeline layout (with push constants)
+    // Pipeline layout (with push constants for screen dimensions)
     const push_constant_range = VkPushConstantRange{
-        .stageFlags = @intFromEnum(VkShaderStageFlagBits.VK_SHADER_STAGE_FRAGMENT_BIT),
+        .stageFlags = @intFromEnum(VkShaderStageFlagBits.VK_SHADER_STAGE_VERTEX_BIT),
         .offset = 0,
-        .size = @sizeOf(OverlayPushConstants),
+        .size = @sizeOf(TextPushConstants),
     };
+
+    // Use descriptor set layout if font is initialized
+    const set_layout_count: u32 = if (data.swapchain_data.descriptor_set_layout != 0) 1 else 0;
+    const set_layouts = [_]VkDescriptorSetLayout{data.swapchain_data.descriptor_set_layout};
 
     const pipeline_layout_info = VkPipelineLayoutCreateInfo{
         .sType = .VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .pNext = null,
         .flags = 0,
-        .setLayoutCount = 0,
-        .pSetLayouts = null,
+        .setLayoutCount = set_layout_count,
+        .pSetLayouts = if (set_layout_count > 0) @ptrCast(&set_layouts) else null,
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = @ptrCast(&push_constant_range),
     };
@@ -1850,6 +2806,24 @@ fn initOverlayRendering(data: *DeviceData) bool {
     if (!createImageViews(data)) return false;
     if (!createFramebuffers(data)) return false;
     if (!createCommandBuffers(data)) return false;
+
+    // Create font texture and sampler
+    if (!createFontResources(data)) {
+        debugLog("Font resources creation failed, falling back to basic overlay", .{});
+    }
+
+    // Create descriptor set for font texture
+    if (data.swapchain_data.font_initialized) {
+        if (!createDescriptorResources(data)) {
+            debugLog("Descriptor creation failed", .{});
+        }
+    }
+
+    // Create vertex buffer
+    if (!createVertexBuffer(data)) {
+        debugLog("Vertex buffer creation failed", .{});
+    }
+
     if (!createOverlayPipeline(data)) return false;
 
     data.swapchain_data.initialized = true;
@@ -1861,6 +2835,8 @@ fn initOverlayRendering(data: *DeviceData) bool {
 fn cleanupOverlayRendering(data: *DeviceData) void {
     if (!data.swapchain_data.initialized) return;
 
+    const sd = &data.swapchain_data;
+
     // Wait for device to be idle
     if (data.device_wait_idle) |wait| {
         _ = wait(data.device);
@@ -1868,47 +2844,98 @@ fn cleanupOverlayRendering(data: *DeviceData) void {
 
     // Destroy pipeline
     if (data.destroy_pipeline) |destroy| {
-        if (data.swapchain_data.pipeline != 0) {
-            destroy(data.device, data.swapchain_data.pipeline, null);
+        if (sd.pipeline != 0) {
+            destroy(data.device, sd.pipeline, null);
         }
     }
 
     // Destroy pipeline layout
     if (data.destroy_pipeline_layout) |destroy| {
-        if (data.swapchain_data.pipeline_layout != 0) {
-            destroy(data.device, data.swapchain_data.pipeline_layout, null);
+        if (sd.pipeline_layout != 0) {
+            destroy(data.device, sd.pipeline_layout, null);
+        }
+    }
+
+    // Cleanup vertex buffer
+    if (sd.vertex_mapped != null) {
+        if (data.unmap_memory) |unmap| {
+            unmap(data.device, sd.vertex_memory);
+        }
+    }
+    if (data.destroy_buffer) |destroy| {
+        if (sd.vertex_buffer != 0) {
+            destroy(data.device, sd.vertex_buffer, null);
+        }
+    }
+    if (data.free_memory) |free| {
+        if (sd.vertex_memory != 0) {
+            free(data.device, sd.vertex_memory, null);
+        }
+    }
+
+    // Cleanup descriptor resources
+    if (data.destroy_descriptor_pool) |destroy| {
+        if (sd.descriptor_pool != 0) {
+            destroy(data.device, sd.descriptor_pool, null);
+        }
+    }
+    if (data.destroy_descriptor_set_layout) |destroy| {
+        if (sd.descriptor_set_layout != 0) {
+            destroy(data.device, sd.descriptor_set_layout, null);
+        }
+    }
+
+    // Cleanup font resources
+    if (data.destroy_sampler) |destroy| {
+        if (sd.font_sampler != 0) {
+            destroy(data.device, sd.font_sampler, null);
+        }
+    }
+    if (data.destroy_image_view) |destroy| {
+        if (sd.font_image_view != 0) {
+            destroy(data.device, sd.font_image_view, null);
+        }
+    }
+    if (data.destroy_image) |destroy| {
+        if (sd.font_image != 0) {
+            destroy(data.device, sd.font_image, null);
+        }
+    }
+    if (data.free_memory) |free| {
+        if (sd.font_memory != 0) {
+            free(data.device, sd.font_memory, null);
         }
     }
 
     // Free command buffers and destroy pool
     if (data.destroy_command_pool) |destroy| {
-        if (data.swapchain_data.command_pool != 0) {
-            destroy(data.device, data.swapchain_data.command_pool, null);
+        if (sd.command_pool != 0) {
+            destroy(data.device, sd.command_pool, null);
         }
     }
 
     // Destroy framebuffers
     if (data.destroy_framebuffer) |destroy| {
-        for (0..data.swapchain_data.image_count) |i| {
-            if (data.swapchain_data.framebuffers[i] != 0) {
-                destroy(data.device, data.swapchain_data.framebuffers[i], null);
+        for (0..sd.image_count) |i| {
+            if (sd.framebuffers[i] != 0) {
+                destroy(data.device, sd.framebuffers[i], null);
             }
         }
     }
 
-    // Destroy image views
+    // Destroy swapchain image views
     if (data.destroy_image_view) |destroy| {
-        for (0..data.swapchain_data.image_count) |i| {
-            if (data.swapchain_data.image_views[i] != 0) {
-                destroy(data.device, data.swapchain_data.image_views[i], null);
+        for (0..sd.image_count) |i| {
+            if (sd.image_views[i] != 0) {
+                destroy(data.device, sd.image_views[i], null);
             }
         }
     }
 
     // Destroy render pass
     if (data.destroy_render_pass) |destroy| {
-        if (data.swapchain_data.render_pass != 0) {
-            destroy(data.device, data.swapchain_data.render_pass, null);
+        if (sd.render_pass != 0) {
+            destroy(data.device, sd.render_pass, null);
         }
     }
 

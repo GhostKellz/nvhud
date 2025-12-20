@@ -15,16 +15,17 @@ pub const metrics = @import("metrics.zig");
 pub const config = @import("config.zig");
 pub const overlay = @import("overlay.zig");
 pub const renderer = @import("renderer.zig");
+pub const font = @import("font.zig");
 
 /// Library version
 pub const version = std.SemanticVersion{
     .major = 0,
-    .minor = 3,
+    .minor = 4,
     .patch = 0,
 };
 
 /// Version string
-pub const version_string = "0.3.0";
+pub const version_string = "0.4.0";
 
 // Re-export key types
 pub const GpuMetrics = metrics.GpuMetrics;
