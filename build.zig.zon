@@ -34,7 +34,8 @@
     .dependencies = .{
         // nvvk - NVIDIA Vulkan extensions library for latency stats
         .nvvk = .{
-            .path = "../nvvk",
+            .url = "https://github.com/ghostkellz/nvvk/archive/main.tar.gz",
+            .hash = "nvvk-0.2.0-mPNRRr5qAgCEvAKGVv5lqfTrl6z0XuWKjusEisgbJsfY",
         },
     },
     // Specifies the set of files and directories that are included in this package.
