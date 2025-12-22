@@ -35,7 +35,7 @@
         // nvvk - NVIDIA Vulkan extensions library for latency stats
         .nvvk = .{
             .url = "https://github.com/ghostkellz/nvvk/archive/main.tar.gz",
-            .hash = "nvvk-0.2.0-mPNRRr5qAgCEvAKGVv5lqfTrl6z0XuWKjusEisgbJsfY",
+            .hash = "nvvk-0.4.0-mPNRRvZ1AwDXnKuBFXFUZU_XOW2BYqn1Cjxbd5-1Rt3F",
         },
     },
     // Specifies the set of files and directories that are included in this package.
