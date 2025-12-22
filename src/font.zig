@@ -292,6 +292,10 @@ pub fn generateTextureR8() [texture_width * texture_height]u8 {
         }
     }
 
+    // Set pixel at (0,0) to solid white for rectangle rendering
+    // Rectangles use UV (0,0) which would otherwise sample the empty space character
+    texture[0] = 255;
+
     return texture;
 }
 

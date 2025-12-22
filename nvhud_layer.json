@@ -3,20 +3,20 @@
     "layer": {
         "name": "VK_LAYER_NVHUD_overlay",
         "type": "GLOBAL",
-        "library_path": "./libnvhud_layer.so",
+        "library_path": "/data/projects/nvhud/zig-out/lib/libnvhud_layer.so",
         "api_version": "1.3.283",
         "implementation_version": "3",
         "description": "nvhud - NVIDIA GPU Performance Overlay with Reflex latency",
         "functions": {
-            "vkGetInstanceProcAddr": "nvhud_vkGetInstanceProcAddr",
-            "vkGetDeviceProcAddr": "nvhud_vkGetDeviceProcAddr",
+            "vkGetInstanceProcAddr": "nvhud_GetInstanceProcAddr",
+            "vkGetDeviceProcAddr": "nvhud_GetDeviceProcAddr",
             "vkNegotiateLoaderLayerInterfaceVersion": "vkNegotiateLoaderLayerInterfaceVersion"
         },
         "enable_environment": {
             "NVHUD": "1"
         },
         "disable_environment": {
-            "NVHUD": "0"
+            "DISABLE_NVHUD": "1"
         }
     }
 }

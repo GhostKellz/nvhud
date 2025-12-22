@@ -72,6 +72,9 @@ const VkStructureType = enum(i32) {
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO = 41,
     VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO = 42,
     VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO = 43,
+    VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER = 44,
+    VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER = 45,
+    VK_STRUCTURE_TYPE_MEMORY_BARRIER = 46,
     VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO = 47,
     VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO = 48,
     VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR = 1000001000,
@@ -350,11 +353,14 @@ const VkVertexInputRate = enum(i32) {
 
 // Additional pipeline stage flags
 const VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT: VkPipelineStageFlags = 0x00000001;
+const VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT: VkPipelineStageFlags = 0x00000080;
 const VK_PIPELINE_STAGE_TRANSFER_BIT: VkPipelineStageFlags = 0x00001000;
+const VK_PIPELINE_STAGE_HOST_BIT: VkPipelineStageFlags = 0x00004000;
 
 // Additional access flags
 const VK_ACCESS_TRANSFER_WRITE_BIT: VkAccessFlags = 0x00001000;
 const VK_ACCESS_SHADER_READ_BIT: VkAccessFlags = 0x00000020;
+const VK_ACCESS_HOST_WRITE_BIT: VkAccessFlags = 0x00004000;
 
 // Function pointer types
 const PFN_vkVoidFunction = ?*const fn () callconv(.c) void;
@@ -1082,9 +1088,9 @@ const PFN_vkDestroyDescriptorSetLayout = *const fn (VkDevice, VkDescriptorSetLay
 const PFN_vkCreateDescriptorPool = *const fn (VkDevice, *const VkDescriptorPoolCreateInfo, ?*const anyopaque, *VkDescriptorPool) callconv(.c) VkResult;
 const PFN_vkDestroyDescriptorPool = *const fn (VkDevice, VkDescriptorPool, ?*const anyopaque) callconv(.c) void;
 const PFN_vkAllocateDescriptorSets = *const fn (VkDevice, *const VkDescriptorSetAllocateInfo, *VkDescriptorSet) callconv(.c) VkResult;
-const PFN_vkUpdateDescriptorSets = *const fn (VkDevice, u32, [*]const VkWriteDescriptorSet, u32, ?[*]const anyopaque) callconv(.c) void;
+const PFN_vkUpdateDescriptorSets = *const fn (VkDevice, u32, [*]const VkWriteDescriptorSet, u32, ?*const anyopaque) callconv(.c) void;
 const PFN_vkCmdCopyBufferToImage = *const fn (VkCommandBuffer, VkBuffer, VkImage, VkImageLayout, u32, [*]const VkBufferImageCopy) callconv(.c) void;
-const PFN_vkCmdPipelineBarrier = *const fn (VkCommandBuffer, VkPipelineStageFlags, VkPipelineStageFlags, VkDependencyFlags, u32, ?[*]const anyopaque, u32, ?[*]const anyopaque, u32, ?[*]const VkImageMemoryBarrier) callconv(.c) void;
+const PFN_vkCmdPipelineBarrier = *const fn (VkCommandBuffer, VkPipelineStageFlags, VkPipelineStageFlags, VkDependencyFlags, u32, ?*const anyopaque, u32, ?*const anyopaque, u32, ?[*]const VkImageMemoryBarrier) callconv(.c) void;
 const PFN_vkCmdBindDescriptorSets = *const fn (VkCommandBuffer, VkPipelineBindPoint, VkPipelineLayout, u32, u32, [*]const VkDescriptorSet, u32, ?[*]const u32) callconv(.c) void;
 const PFN_vkCmdBindVertexBuffers = *const fn (VkCommandBuffer, u32, u32, [*]const VkBuffer, [*]const u64) callconv(.c) void;
 
@@ -1562,7 +1568,22 @@ export fn nvhud_CreateDevice(
     device_data.cmd_bind_vertex_buffers = @ptrCast(next_gdpa(pDevice.*, "vkCmdBindVertexBuffers"));
 
     // Load physical device memory properties (from instance)
-    const get_mem_props: ?PFN_vkGetPhysicalDeviceMemoryProperties = @ptrCast(instance_data.get_instance_proc_addr(instance_data.instance, "vkGetPhysicalDeviceMemoryProperties"));
+    // First try with null instance (works on some loaders)
+    var get_mem_props: ?PFN_vkGetPhysicalDeviceMemoryProperties = @ptrCast(next_gipa(null, "vkGetPhysicalDeviceMemoryProperties"));
+
+    // If that failed, try getting it from a known instance
+    if (get_mem_props == null) {
+        var iter = instance_map.iterator();
+        while (iter.next()) |entry| {
+            const inst_data = entry.value_ptr.*;
+            get_mem_props = @ptrCast(inst_data.get_instance_proc_addr(inst_data.instance, "vkGetPhysicalDeviceMemoryProperties"));
+            if (get_mem_props != null) {
+                debugLog("Got memory props function from instance", .{});
+                break;
+            }
+        }
+    }
+
     device_data.get_physical_device_memory_properties = get_mem_props;
     if (get_mem_props) |get_props| {
         get_props(physicalDevice, &device_data.memory_properties);
@@ -1700,6 +1721,11 @@ fn recordOverlayCommands(data: *DeviceData, image_index: u32) bool {
 
     // Generate HUD content (fills vertex buffer)
     generateHudContent(sd);
+
+    // Debug: log vertex count
+    if (frame_count % 300 == 1) { // Log every ~5 seconds at 60fps
+        debugLog("Recording frame {} with {} vertices", .{ frame_count, sd.vertex_count });
+    }
 
     // Nothing to draw
     if (sd.vertex_count == 0) return true;
@@ -1899,70 +1925,96 @@ export fn nvhud_QueuePresentKHR(
 // Swapchain Hooks and Rendering Infrastructure
 // ============================================================================
 
-// Vertex shader: Fullscreen triangle (no vertex buffer needed)
+// Vertex shader: Takes vertex attributes (pos, uv, color) and transforms to NDC
 // Compiled from shaders/overlay.vert with glslangValidator
 const vertex_shader_spv = [_]u32{
-    0x07230203, 0x00010000, 0x0008000b, 0x0000002b, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
+    0x07230203, 0x00010000, 0x0008000b, 0x00000035, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
     0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001,
-    0x0008000f, 0x00000000, 0x00000004, 0x6e69616d, 0x00000000, 0x00000009, 0x0000000c, 0x0000001d,
-    0x00030003, 0x00000002, 0x000001c2, 0x00040005, 0x00000004, 0x6e69616d, 0x00000000, 0x00040005,
-    0x00000009, 0x5574756f, 0x00000056, 0x00060005, 0x0000000c, 0x565f6c67, 0x65747265, 0x646e4978,
-    0x00007865, 0x00060005, 0x0000001b, 0x505f6c67, 0x65567265, 0x78657472, 0x00000000, 0x00060006,
-    0x0000001b, 0x00000000, 0x505f6c67, 0x7469736f, 0x006e6f69, 0x00070006, 0x0000001b, 0x00000001,
-    0x505f6c67, 0x746e696f, 0x657a6953, 0x00000000, 0x00070006, 0x0000001b, 0x00000002, 0x435f6c67,
-    0x4470696c, 0x61747369, 0x0065636e, 0x00070006, 0x0000001b, 0x00000003, 0x435f6c67, 0x446c6c75,
-    0x61747369, 0x0065636e, 0x00030005, 0x0000001d, 0x00000000, 0x00040047, 0x00000009, 0x0000001e,
-    0x00000000, 0x00040047, 0x0000000c, 0x0000000b, 0x0000002a, 0x00030047, 0x0000001b, 0x00000002,
-    0x00050048, 0x0000001b, 0x00000000, 0x0000000b, 0x00000000, 0x00050048, 0x0000001b, 0x00000001,
-    0x0000000b, 0x00000001, 0x00050048, 0x0000001b, 0x00000002, 0x0000000b, 0x00000003, 0x00050048,
-    0x0000001b, 0x00000003, 0x0000000b, 0x00000004, 0x00020013, 0x00000002, 0x00030021, 0x00000003,
+    0x000b000f, 0x00000000, 0x00000004, 0x6e69616d, 0x00000000, 0x0000000b, 0x00000025, 0x0000002e,
+    0x0000002f, 0x00000031, 0x00000033, 0x00030003, 0x00000002, 0x000001c2, 0x00040005, 0x00000004,
+    0x6e69616d, 0x00000000, 0x00030005, 0x00000009, 0x0063646e, 0x00040005, 0x0000000b, 0x6f506e69,
+    0x00000073, 0x00060005, 0x0000000d, 0x68737550, 0x736e6f43, 0x746e6174, 0x00000073, 0x00060006,
+    0x0000000d, 0x00000000, 0x65726373, 0x69576e65, 0x00687464, 0x00070006, 0x0000000d, 0x00000001,
+    0x65726373, 0x65486e65, 0x74686769, 0x00000000, 0x00030005, 0x0000000f, 0x00006370, 0x00060005,
+    0x00000023, 0x505f6c67, 0x65567265, 0x78657472, 0x00000000, 0x00060006, 0x00000023, 0x00000000,
+    0x505f6c67, 0x7469736f, 0x006e6f69, 0x00070006, 0x00000023, 0x00000001, 0x505f6c67, 0x746e696f,
+    0x657a6953, 0x00000000, 0x00070006, 0x00000023, 0x00000002, 0x435f6c67, 0x4470696c, 0x61747369,
+    0x0065636e, 0x00070006, 0x00000023, 0x00000003, 0x435f6c67, 0x446c6c75, 0x61747369, 0x0065636e,
+    0x00030005, 0x00000025, 0x00000000, 0x00040005, 0x0000002e, 0x5574756f, 0x00000056, 0x00040005,
+    0x0000002f, 0x56556e69, 0x00000000, 0x00050005, 0x00000031, 0x4374756f, 0x726f6c6f, 0x00000000,
+    0x00040005, 0x00000033, 0x6f436e69, 0x00726f6c, 0x00040047, 0x0000000b, 0x0000001e, 0x00000000,
+    0x00030047, 0x0000000d, 0x00000002, 0x00050048, 0x0000000d, 0x00000000, 0x00000023, 0x00000000,
+    0x00050048, 0x0000000d, 0x00000001, 0x00000023, 0x00000004, 0x00030047, 0x00000023, 0x00000002,
+    0x00050048, 0x00000023, 0x00000000, 0x0000000b, 0x00000000, 0x00050048, 0x00000023, 0x00000001,
+    0x0000000b, 0x00000001, 0x00050048, 0x00000023, 0x00000002, 0x0000000b, 0x00000003, 0x00050048,
+    0x00000023, 0x00000003, 0x0000000b, 0x00000004, 0x00040047, 0x0000002e, 0x0000001e, 0x00000000,
+    0x00040047, 0x0000002f, 0x0000001e, 0x00000001, 0x00040047, 0x00000031, 0x0000001e, 0x00000001,
+    0x00040047, 0x00000033, 0x0000001e, 0x00000002, 0x00020013, 0x00000002, 0x00030021, 0x00000003,
     0x00000002, 0x00030016, 0x00000006, 0x00000020, 0x00040017, 0x00000007, 0x00000006, 0x00000002,
-    0x00040020, 0x00000008, 0x00000003, 0x00000007, 0x0004003b, 0x00000008, 0x00000009, 0x00000003,
-    0x00040015, 0x0000000a, 0x00000020, 0x00000001, 0x00040020, 0x0000000b, 0x00000001, 0x0000000a,
-    0x0004003b, 0x0000000b, 0x0000000c, 0x00000001, 0x0004002b, 0x0000000a, 0x0000000e, 0x00000001,
-    0x0004002b, 0x0000000a, 0x00000010, 0x00000002, 0x00040017, 0x00000017, 0x00000006, 0x00000004,
-    0x00040015, 0x00000018, 0x00000020, 0x00000000, 0x0004002b, 0x00000018, 0x00000019, 0x00000001,
-    0x0004001c, 0x0000001a, 0x00000006, 0x00000019, 0x0006001e, 0x0000001b, 0x00000017, 0x00000006,
-    0x0000001a, 0x0000001a, 0x00040020, 0x0000001c, 0x00000003, 0x0000001b, 0x0004003b, 0x0000001c,
-    0x0000001d, 0x00000003, 0x0004002b, 0x0000000a, 0x0000001e, 0x00000000, 0x0004002b, 0x00000006,
-    0x00000020, 0x40000000, 0x0004002b, 0x00000006, 0x00000022, 0x3f800000, 0x0004002b, 0x00000006,
-    0x00000025, 0x00000000, 0x00040020, 0x00000029, 0x00000003, 0x00000017, 0x00050036, 0x00000002,
-    0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005, 0x0004003d, 0x0000000a, 0x0000000d,
-    0x0000000c, 0x000500c4, 0x0000000a, 0x0000000f, 0x0000000d, 0x0000000e, 0x000500c7, 0x0000000a,
-    0x00000011, 0x0000000f, 0x00000010, 0x0004006f, 0x00000006, 0x00000012, 0x00000011, 0x0004003d,
-    0x0000000a, 0x00000013, 0x0000000c, 0x000500c7, 0x0000000a, 0x00000014, 0x00000013, 0x00000010,
-    0x0004006f, 0x00000006, 0x00000015, 0x00000014, 0x00050050, 0x00000007, 0x00000016, 0x00000012,
-    0x00000015, 0x0003003e, 0x00000009, 0x00000016, 0x0004003d, 0x00000007, 0x0000001f, 0x00000009,
-    0x0005008e, 0x00000007, 0x00000021, 0x0000001f, 0x00000020, 0x00050050, 0x00000007, 0x00000023,
-    0x00000022, 0x00000022, 0x00050083, 0x00000007, 0x00000024, 0x00000021, 0x00000023, 0x00050051,
-    0x00000006, 0x00000026, 0x00000024, 0x00000000, 0x00050051, 0x00000006, 0x00000027, 0x00000024,
-    0x00000001, 0x00070050, 0x00000017, 0x00000028, 0x00000026, 0x00000027, 0x00000025, 0x00000022,
-    0x00050041, 0x00000029, 0x0000002a, 0x0000001d, 0x0000001e, 0x0003003e, 0x0000002a, 0x00000028,
-    0x000100fd, 0x00010038,
+    0x00040020, 0x00000008, 0x00000007, 0x00000007, 0x00040020, 0x0000000a, 0x00000001, 0x00000007,
+    0x0004003b, 0x0000000a, 0x0000000b, 0x00000001, 0x0004001e, 0x0000000d, 0x00000006, 0x00000006,
+    0x00040020, 0x0000000e, 0x00000009, 0x0000000d, 0x0004003b, 0x0000000e, 0x0000000f, 0x00000009,
+    0x00040015, 0x00000010, 0x00000020, 0x00000001, 0x0004002b, 0x00000010, 0x00000011, 0x00000000,
+    0x00040020, 0x00000012, 0x00000009, 0x00000006, 0x0004002b, 0x00000010, 0x00000015, 0x00000001,
+    0x0004002b, 0x00000006, 0x0000001a, 0x40000000, 0x0004002b, 0x00000006, 0x0000001c, 0x3f800000,
+    0x00040017, 0x0000001f, 0x00000006, 0x00000004, 0x00040015, 0x00000020, 0x00000020, 0x00000000,
+    0x0004002b, 0x00000020, 0x00000021, 0x00000001, 0x0004001c, 0x00000022, 0x00000006, 0x00000021,
+    0x0006001e, 0x00000023, 0x0000001f, 0x00000006, 0x00000022, 0x00000022, 0x00040020, 0x00000024,
+    0x00000003, 0x00000023, 0x0004003b, 0x00000024, 0x00000025, 0x00000003, 0x0004002b, 0x00000006,
+    0x00000027, 0x00000000, 0x00040020, 0x0000002b, 0x00000003, 0x0000001f, 0x00040020, 0x0000002d,
+    0x00000003, 0x00000007, 0x0004003b, 0x0000002d, 0x0000002e, 0x00000003, 0x0004003b, 0x0000000a,
+    0x0000002f, 0x00000001, 0x0004003b, 0x0000002b, 0x00000031, 0x00000003, 0x00040020, 0x00000032,
+    0x00000001, 0x0000001f, 0x0004003b, 0x00000032, 0x00000033, 0x00000001, 0x00050036, 0x00000002,
+    0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005, 0x0004003b, 0x00000008, 0x00000009,
+    0x00000007, 0x0004003d, 0x00000007, 0x0000000c, 0x0000000b, 0x00050041, 0x00000012, 0x00000013,
+    0x0000000f, 0x00000011, 0x0004003d, 0x00000006, 0x00000014, 0x00000013, 0x00050041, 0x00000012,
+    0x00000016, 0x0000000f, 0x00000015, 0x0004003d, 0x00000006, 0x00000017, 0x00000016, 0x00050050,
+    0x00000007, 0x00000018, 0x00000014, 0x00000017, 0x00050088, 0x00000007, 0x00000019, 0x0000000c,
+    0x00000018, 0x0005008e, 0x00000007, 0x0000001b, 0x00000019, 0x0000001a, 0x00050050, 0x00000007,
+    0x0000001d, 0x0000001c, 0x0000001c, 0x00050083, 0x00000007, 0x0000001e, 0x0000001b, 0x0000001d,
+    0x0003003e, 0x00000009, 0x0000001e, 0x0004003d, 0x00000007, 0x00000026, 0x00000009, 0x00050051,
+    0x00000006, 0x00000028, 0x00000026, 0x00000000, 0x00050051, 0x00000006, 0x00000029, 0x00000026,
+    0x00000001, 0x00070050, 0x0000001f, 0x0000002a, 0x00000028, 0x00000029, 0x00000027, 0x0000001c,
+    0x00050041, 0x0000002b, 0x0000002c, 0x00000025, 0x00000011, 0x0003003e, 0x0000002c, 0x0000002a,
+    0x0004003d, 0x00000007, 0x00000030, 0x0000002f, 0x0003003e, 0x0000002e, 0x00000030, 0x0004003d,
+    0x0000001f, 0x00000034, 0x00000033, 0x0003003e, 0x00000031, 0x00000034, 0x000100fd, 0x00010038,
 };
 
-// Fragment shader: Solid color from push constants
+// Fragment shader: Samples font texture and multiplies by vertex color
 // Compiled from shaders/overlay.frag with glslangValidator
 const fragment_shader_spv = [_]u32{
-    0x07230203, 0x00010000, 0x0008000b, 0x00000015, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
+    0x07230203, 0x00010000, 0x0008000b, 0x00000028, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
     0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001,
-    0x0007000f, 0x00000004, 0x00000004, 0x6e69616d, 0x00000000, 0x00000009, 0x00000014, 0x00030010,
-    0x00000004, 0x00000007, 0x00030003, 0x00000002, 0x000001c2, 0x00040005, 0x00000004, 0x6e69616d,
-    0x00000000, 0x00050005, 0x00000009, 0x4374756f, 0x726f6c6f, 0x00000000, 0x00060005, 0x0000000a,
-    0x68737550, 0x736e6f43, 0x746e6174, 0x00000073, 0x00050006, 0x0000000a, 0x00000000, 0x6f6c6f63,
-    0x00000072, 0x00030005, 0x0000000c, 0x00006370, 0x00040005, 0x00000014, 0x56556e69, 0x00000000,
-    0x00040047, 0x00000009, 0x0000001e, 0x00000000, 0x00030047, 0x0000000a, 0x00000002, 0x00050048,
-    0x0000000a, 0x00000000, 0x00000023, 0x00000000, 0x00040047, 0x00000014, 0x0000001e, 0x00000000,
-    0x00020013, 0x00000002, 0x00030021, 0x00000003, 0x00000002, 0x00030016, 0x00000006, 0x00000020,
-    0x00040017, 0x00000007, 0x00000006, 0x00000004, 0x00040020, 0x00000008, 0x00000003, 0x00000007,
-    0x0004003b, 0x00000008, 0x00000009, 0x00000003, 0x0003001e, 0x0000000a, 0x00000007, 0x00040020,
-    0x0000000b, 0x00000009, 0x0000000a, 0x0004003b, 0x0000000b, 0x0000000c, 0x00000009, 0x00040015,
-    0x0000000d, 0x00000020, 0x00000001, 0x0004002b, 0x0000000d, 0x0000000e, 0x00000000, 0x00040020,
-    0x0000000f, 0x00000009, 0x00000007, 0x00040017, 0x00000012, 0x00000006, 0x00000002, 0x00040020,
-    0x00000013, 0x00000001, 0x00000012, 0x0004003b, 0x00000013, 0x00000014, 0x00000001, 0x00050036,
-    0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005, 0x00050041, 0x0000000f,
-    0x00000010, 0x0000000c, 0x0000000e, 0x0004003d, 0x00000007, 0x00000011, 0x00000010, 0x0003003e,
-    0x00000009, 0x00000011, 0x000100fd, 0x00010038,
+    0x0008000f, 0x00000004, 0x00000004, 0x6e69616d, 0x00000000, 0x00000010, 0x00000018, 0x0000001a,
+    0x00030010, 0x00000004, 0x00000007, 0x00030003, 0x00000002, 0x000001c2, 0x00040005, 0x00000004,
+    0x6e69616d, 0x00000000, 0x00050005, 0x00000008, 0x41786574, 0x6168706c, 0x00000000, 0x00050005,
+    0x0000000c, 0x746e6f66, 0x74786554, 0x00657275, 0x00040005, 0x00000010, 0x56556e69, 0x00000000,
+    0x00050005, 0x00000018, 0x4374756f, 0x726f6c6f, 0x00000000, 0x00040005, 0x0000001a, 0x6f436e69,
+    0x00726f6c, 0x00040047, 0x0000000c, 0x00000021, 0x00000000, 0x00040047, 0x0000000c, 0x00000022,
+    0x00000000, 0x00040047, 0x00000010, 0x0000001e, 0x00000000, 0x00040047, 0x00000018, 0x0000001e,
+    0x00000000, 0x00040047, 0x0000001a, 0x0000001e, 0x00000001, 0x00020013, 0x00000002, 0x00030021,
+    0x00000003, 0x00000002, 0x00030016, 0x00000006, 0x00000020, 0x00040020, 0x00000007, 0x00000007,
+    0x00000006, 0x00090019, 0x00000009, 0x00000006, 0x00000001, 0x00000000, 0x00000000, 0x00000000,
+    0x00000001, 0x00000000, 0x0003001b, 0x0000000a, 0x00000009, 0x00040020, 0x0000000b, 0x00000000,
+    0x0000000a, 0x0004003b, 0x0000000b, 0x0000000c, 0x00000000, 0x00040017, 0x0000000e, 0x00000006,
+    0x00000002, 0x00040020, 0x0000000f, 0x00000001, 0x0000000e, 0x0004003b, 0x0000000f, 0x00000010,
+    0x00000001, 0x00040017, 0x00000012, 0x00000006, 0x00000004, 0x00040015, 0x00000014, 0x00000020,
+    0x00000000, 0x0004002b, 0x00000014, 0x00000015, 0x00000000, 0x00040020, 0x00000017, 0x00000003,
+    0x00000012, 0x0004003b, 0x00000017, 0x00000018, 0x00000003, 0x00040020, 0x00000019, 0x00000001,
+    0x00000012, 0x0004003b, 0x00000019, 0x0000001a, 0x00000001, 0x00040017, 0x0000001b, 0x00000006,
+    0x00000003, 0x0004002b, 0x00000014, 0x0000001e, 0x00000003, 0x00040020, 0x0000001f, 0x00000001,
+    0x00000006, 0x00050036, 0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005,
+    0x0004003b, 0x00000007, 0x00000008, 0x00000007, 0x0004003d, 0x0000000a, 0x0000000d, 0x0000000c,
+    0x0004003d, 0x0000000e, 0x00000011, 0x00000010, 0x00050057, 0x00000012, 0x00000013, 0x0000000d,
+    0x00000011, 0x00050051, 0x00000006, 0x00000016, 0x00000013, 0x00000000, 0x0003003e, 0x00000008,
+    0x00000016, 0x0004003d, 0x00000012, 0x0000001c, 0x0000001a, 0x0008004f, 0x0000001b, 0x0000001d,
+    0x0000001c, 0x0000001c, 0x00000000, 0x00000001, 0x00000002, 0x00050041, 0x0000001f, 0x00000020,
+    0x0000001a, 0x0000001e, 0x0004003d, 0x00000006, 0x00000021, 0x00000020, 0x0004003d, 0x00000006,
+    0x00000022, 0x00000008, 0x00050085, 0x00000006, 0x00000023, 0x00000021, 0x00000022, 0x00050051,
+    0x00000006, 0x00000024, 0x0000001d, 0x00000000, 0x00050051, 0x00000006, 0x00000025, 0x0000001d,
+    0x00000001, 0x00050051, 0x00000006, 0x00000026, 0x0000001d, 0x00000002, 0x00070050, 0x00000012,
+    0x00000027, 0x00000024, 0x00000025, 0x00000026, 0x00000023, 0x0003003e, 0x00000018, 0x00000027,
+    0x000100fd, 0x00010038,
 };
 
 // Push constants for overlay rendering (just color - 16 bytes)
@@ -2014,14 +2066,27 @@ fn findMemoryType(data: *DeviceData, type_bits: u32, properties: VkMemoryPropert
 
 /// Create font texture and sampler
 fn createFontResources(data: *DeviceData) bool {
+    debugLog("createFontResources called", .{});
     const sd = &data.swapchain_data;
-    if (sd.font_initialized) return true;
+    if (sd.font_initialized) {
+        debugLog("Font already initialized", .{});
+        return true;
+    }
 
     // Need these functions
     if (data.create_image == null or data.create_sampler == null or
         data.allocate_memory == null or data.bind_image_memory == null or
-        data.create_image_view == null or data.get_image_memory_requirements == null)
+        data.create_image_view == null or data.get_image_memory_requirements == null) {
+        debugLog("Missing font function pointers: img={} samp={} alloc={} bind={} view={} req={}", .{
+            data.create_image != null,
+            data.create_sampler != null,
+            data.allocate_memory != null,
+            data.bind_image_memory != null,
+            data.create_image_view != null,
+            data.get_image_memory_requirements != null,
+        });
         return false;
+    }
 
     debugLog("Creating font texture {}x{}", .{ font.texture_width, font.texture_height });
 
@@ -2102,6 +2167,91 @@ fn createFontResources(data: *DeviceData) bool {
             const dest: [*]u8 = @ptrCast(mapped);
             @memcpy(dest[0..font_data.len], &font_data);
             data.unmap_memory.?(data.device, sd.font_memory);
+        }
+    }
+
+    // Transition font image layout from PREINITIALIZED to SHADER_READ_ONLY_OPTIMAL
+    // Use the first swapchain command buffer for this one-time transition
+    if (sd.command_pool != 0 and sd.command_buffers[0] != null) {
+        const cmd = sd.command_buffers[0].?;
+
+        // Reset and begin command buffer
+        if (data.reset_command_buffer) |reset| {
+            _ = reset(cmd, 0);
+        }
+
+        const begin_info = VkCommandBufferBeginInfo{
+            .sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .pNext = null,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            .pInheritanceInfo = null,
+        };
+
+        if (data.begin_command_buffer) |begin| {
+            if (begin(cmd, &begin_info) == .VK_SUCCESS) {
+                // Image memory barrier for layout transition
+                const barrier = VkImageMemoryBarrier{
+                    .sType = .VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .pNext = null,
+                    .srcAccessMask = VK_ACCESS_HOST_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                    .oldLayout = .VK_IMAGE_LAYOUT_PREINITIALIZED,
+                    .newLayout = .VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    .srcQueueFamilyIndex = 0xFFFFFFFF, // VK_QUEUE_FAMILY_IGNORED
+                    .dstQueueFamilyIndex = 0xFFFFFFFF,
+                    .image = sd.font_image,
+                    .subresourceRange = .{
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    },
+                };
+
+                if (data.cmd_pipeline_barrier) |pipeline_barrier| {
+                    pipeline_barrier(
+                        cmd,
+                        VK_PIPELINE_STAGE_HOST_BIT,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0,
+                        0,
+                        null,
+                        0,
+                        null,
+                        1,
+                        @ptrCast(&barrier),
+                    );
+                }
+
+                if (data.end_command_buffer) |end| {
+                    if (end(cmd) == .VK_SUCCESS) {
+                        // Submit the command buffer
+                        const submit_info = VkSubmitInfo{
+                            .sType = .VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                            .pNext = null,
+                            .waitSemaphoreCount = 0,
+                            .pWaitSemaphores = null,
+                            .pWaitDstStageMask = null,
+                            .commandBufferCount = 1,
+                            .pCommandBuffers = @ptrCast(&cmd),
+                            .signalSemaphoreCount = 0,
+                            .pSignalSemaphores = null,
+                        };
+
+                        if (data.queue_submit) |submit| {
+                            if (sd.graphics_queue) |queue| {
+                                _ = submit(queue, 1, @ptrCast(&submit_info), 0);
+                                // Wait for completion (simple synchronization)
+                                if (data.queue_wait_idle) |wait| {
+                                    _ = wait(queue);
+                                }
+                                debugLog("Font image layout transitioned", .{});
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -2329,7 +2479,7 @@ fn createVertexBuffer(data: *DeviceData) bool {
 }
 
 /// Add a quad to the vertex buffer (6 vertices for 2 triangles)
-fn addQuad(sd: *SwapchainData, x: f32, y: f32, w: f32, h: f32, u0: f32, v0: f32, u1: f32, v1: f32, r: f32, g: f32, b: f32, a: f32) void {
+fn addQuad(sd: *SwapchainData, x: f32, y: f32, w: f32, h: f32, tex_u0: f32, tex_v0: f32, tex_u1: f32, tex_v1: f32, r: f32, g: f32, b: f32, a: f32) void {
     if (sd.vertex_mapped == null) return;
     if (sd.vertex_count + 6 > sd.vertex_capacity) return;
 
@@ -2337,14 +2487,14 @@ fn addQuad(sd: *SwapchainData, x: f32, y: f32, w: f32, h: f32, u0: f32, v0: f32,
     const base = sd.vertex_count;
 
     // Triangle 1: top-left, top-right, bottom-left
-    verts[base + 0] = .{ .x = x, .y = y, .u = u0, .v = v0, .r = r, .g = g, .b = b, .a = a };
-    verts[base + 1] = .{ .x = x + w, .y = y, .u = u1, .v = v0, .r = r, .g = g, .b = b, .a = a };
-    verts[base + 2] = .{ .x = x, .y = y + h, .u = u0, .v = v1, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 0] = .{ .x = x, .y = y, .u = tex_u0, .v = tex_v0, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 1] = .{ .x = x + w, .y = y, .u = tex_u1, .v = tex_v0, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 2] = .{ .x = x, .y = y + h, .u = tex_u0, .v = tex_v1, .r = r, .g = g, .b = b, .a = a };
 
     // Triangle 2: top-right, bottom-right, bottom-left
-    verts[base + 3] = .{ .x = x + w, .y = y, .u = u1, .v = v0, .r = r, .g = g, .b = b, .a = a };
-    verts[base + 4] = .{ .x = x + w, .y = y + h, .u = u1, .v = v1, .r = r, .g = g, .b = b, .a = a };
-    verts[base + 5] = .{ .x = x, .y = y + h, .u = u0, .v = v1, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 3] = .{ .x = x + w, .y = y, .u = tex_u1, .v = tex_v0, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 4] = .{ .x = x + w, .y = y + h, .u = tex_u1, .v = tex_v1, .r = r, .g = g, .b = b, .a = a };
+    verts[base + 5] = .{ .x = x, .y = y + h, .u = tex_u0, .v = tex_v1, .r = r, .g = g, .b = b, .a = a };
 
     sd.vertex_count += 6;
 }

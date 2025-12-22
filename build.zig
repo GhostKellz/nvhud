@@ -105,12 +105,12 @@ pub fn build(b: *std.Build) void {
     // by passing `--prefix` or `-p`.
     b.installArtifact(exe);
 
-    // Build the Vulkan layer shared library
+    // Build the Vulkan layer shared library (using the full implementation)
     const layer_lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "nvhud_layer",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/vulkan_layer.zig"),
+            .root_source_file = b.path("layer/vk_layer.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = true,
