@@ -1,0 +1,11 @@
+post_install() {
+    echo ">>> nvhud installed!"
+    echo "    Usage: NVHUD=1 <game_command>"
+    echo "    Example: NVHUD=1 vkcube"
+    echo ""
+    echo "    Configure via ~/.config/nvhud/config.toml"
+}
+
+post_upgrade() {
+    post_install
+}
