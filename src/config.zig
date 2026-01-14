@@ -6,6 +6,18 @@
 const std = @import("std");
 const fs = std.fs;
 const mem = std.mem;
+const Io = std.Io;
+const Dir = Io.Dir;
+const File = Io.File;
+
+/// Helper to get environment variable (Zig 0.16 uses std.c.getenv)
+fn getenv(name: [:0]const u8) ?[]const u8 {
+    const result = std.c.getenv(name.ptr);
+    if (result) |ptr| {
+        return mem.sliceTo(ptr, 0);
+    }
+    return null;
+}
 
 /// Overlay position
 pub const Position = enum {
@@ -179,18 +191,19 @@ pub const Config = struct {
     }
 
     /// Load config from file
-    pub fn load(allocator: mem.Allocator) !Config {
-        _ = allocator;
-        const home = std.posix.getenv("HOME") orelse return Config.default();
+    pub fn load(io: Io) !Config {
+        const home = getenv("HOME") orelse return Config.default();
         var path_buf: [512]u8 = undefined;
         const path = std.fmt.bufPrint(&path_buf, "{s}/.config/nvhud/config.toml", .{home}) catch return Config.default();
 
-        const file = fs.cwd().openFile(path, .{}) catch return Config.default();
-        defer file.close();
+        const file = Dir.openFile(Dir.cwd(), io, path, .{}) catch return Config.default();
+        defer file.close(io);
 
         // Read file content into a static buffer (max 64KB)
         var content_buf: [64 * 1024]u8 = undefined;
-        const bytes_read = file.read(&content_buf) catch return Config.default();
+        var reader_buf: [4096]u8 = undefined;
+        var file_reader = file.reader(io, &reader_buf);
+        const bytes_read = file_reader.interface.readSliceShort(&content_buf) catch return Config.default();
         const content = content_buf[0..bytes_read];
 
         return parseToml(content);
@@ -244,50 +257,49 @@ pub const Config = struct {
     }
 
     /// Save config to file
-    pub fn save(self: *const Config, allocator: mem.Allocator) !void {
-        _ = allocator;
-        const home = std.posix.getenv("HOME") orelse return error.NoHome;
+    pub fn save(self: *const Config, io: Io) !void {
+        const home = getenv("HOME") orelse return error.NoHome;
 
         // Create directory if needed
         var dir_path_buf: [512]u8 = undefined;
         const dir_path = try std.fmt.bufPrint(&dir_path_buf, "{s}/.config/nvhud", .{home});
-        fs.cwd().makePath(dir_path) catch {};
+        Dir.createDirPath(Dir.cwd(), io, dir_path) catch {};
 
         var path_buf: [512]u8 = undefined;
         const path = try std.fmt.bufPrint(&path_buf, "{s}/.config/nvhud/config.toml", .{home});
 
-        const file = try fs.cwd().createFile(path, .{});
-        defer file.close();
+        const file = try Dir.createFile(Dir.cwd(), io, path, .{});
+        defer file.close(io);
 
         // Write config directly with multiple writes
         var line_buf: [256]u8 = undefined;
 
-        _ = try file.write("# nvhud configuration\n\n[metrics]\n");
+        try file.writeStreamingAll(io, "# nvhud configuration\n\n[metrics]\n");
 
         var line = std.fmt.bufPrint(&line_buf, "show_fps = {s}\n", .{if (self.show_fps) "true" else "false"}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = std.fmt.bufPrint(&line_buf, "show_frametime = {s}\n", .{if (self.show_frametime) "true" else "false"}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = std.fmt.bufPrint(&line_buf, "show_frametime_graph = {s}\n", .{if (self.show_frametime_graph) "true" else "false"}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = std.fmt.bufPrint(&line_buf, "show_gpu_temp = {s}\n", .{if (self.show_gpu_temp) "true" else "false"}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = std.fmt.bufPrint(&line_buf, "show_gpu_util = {s}\n", .{if (self.show_gpu_util) "true" else "false"}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = std.fmt.bufPrint(&line_buf, "show_vram = {s}\n", .{if (self.show_vram) "true" else "false"}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
 
-        _ = try file.write("\n[overlay]\n");
+        try file.writeStreamingAll(io, "\n[overlay]\n");
         line = std.fmt.bufPrint(&line_buf, "position = \"{s}\"\n", .{self.position.toString()}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = std.fmt.bufPrint(&line_buf, "update_interval_ms = {d}\n", .{self.update_interval_ms}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
 
-        _ = try file.write("\n[thresholds]\n");
+        try file.writeStreamingAll(io, "\n[thresholds]\n");
         line = std.fmt.bufPrint(&line_buf, "temp_warning = {d}\n", .{self.temp_warning}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = std.fmt.bufPrint(&line_buf, "temp_critical = {d}\n", .{self.temp_critical}) catch return;
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
     }
 
     /// Generate default config file content

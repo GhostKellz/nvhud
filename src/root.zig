@@ -8,6 +8,16 @@
 //! - Configurable via TOML or environment variables
 
 const std = @import("std");
+const Io = std.Io;
+
+/// Helper to get environment variable (Zig 0.16 uses std.c.getenv)
+fn getenv(name: [:0]const u8) ?[]const u8 {
+    const result = std.c.getenv(name.ptr);
+    if (result) |ptr| {
+        return std.mem.sliceTo(ptr, 0);
+    }
+    return null;
+}
 
 // Public modules
 pub const nvml = @import("nvml.zig");
@@ -21,11 +31,11 @@ pub const font = @import("font.zig");
 pub const version = std.SemanticVersion{
     .major = 0,
     .minor = 4,
-    .patch = 0,
+    .patch = 1,
 };
 
 /// Version string
-pub const version_string = "0.4.0";
+pub const version_string = "0.4.1";
 
 // Re-export key types
 pub const GpuMetrics = metrics.GpuMetrics;
@@ -63,8 +73,8 @@ pub fn createOverlayWithConfig(allocator: std.mem.Allocator, cfg: Config) Overla
 }
 
 /// Load config from file
-pub fn loadConfig(allocator: std.mem.Allocator) Config {
-    return Config.load(allocator) catch Config.default();
+pub fn loadConfig(io: Io) Config {
+    return Config.load(io) catch Config.default();
 }
 
 /// Environment variable to enable overlay
@@ -75,22 +85,22 @@ pub const ENV_CONFIG = "NVHUD_CONFIG";
 
 /// Check if overlay is enabled via environment
 pub fn isOverlayEnabled() bool {
-    if (std.posix.getenv(ENV_ENABLE)) |val| {
+    if (getenv(ENV_ENABLE)) |val| {
         return std.mem.eql(u8, val, "1") or std.mem.eql(u8, val, "true");
     }
     return false;
 }
 
 /// Get config from environment, falling back to defaults
-pub fn getConfigFromEnv(allocator: std.mem.Allocator) Config {
-    var cfg = loadConfig(allocator);
+pub fn getConfigFromEnv(io: Io) Config {
+    var cfg = loadConfig(io);
 
     // Override with env vars
-    if (std.posix.getenv(ENV_POSITION)) |pos| {
+    if (getenv(ENV_POSITION)) |pos| {
         cfg.position = Position.fromString(pos);
     }
 
-    if (std.posix.getenv(ENV_FPS)) |fps_str| {
+    if (getenv(ENV_FPS)) |fps_str| {
         if (std.mem.eql(u8, fps_str, "0") or std.mem.eql(u8, fps_str, "false")) {
             cfg.show_fps = false;
         }

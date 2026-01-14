@@ -40,20 +40,27 @@ const Color = struct {
     const nvidia = "\x1b[38;2;118;185;0m";
 };
 
-/// Sleep for nanoseconds (Zig 0.16 API)
+/// Sleep for nanoseconds (Zig 0.16 API - use libc)
 fn sleep(ns: u64) void {
-    const secs = ns / std.time.ns_per_s;
-    const nanos = ns % std.time.ns_per_s;
-    std.posix.nanosleep(secs, nanos);
+    const secs: isize = @intCast(ns / std.time.ns_per_s);
+    const nanos: isize = @intCast(ns % std.time.ns_per_s);
+    const req = std.c.timespec{ .sec = secs, .nsec = nanos };
+    _ = std.c.nanosleep(&req, null);
 }
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const io = init.io;
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    // Collect args into a list
+    var args_list: std.ArrayList([]const u8) = .empty;
+    defer args_list.deinit(allocator);
+
+    var args_iter = std.process.Args.Iterator.init(init.minimal.args);
+    while (args_iter.next()) |arg| {
+        try args_list.append(allocator, arg);
+    }
+    const args = args_list.items;
 
     if (args.len < 2) {
         printUsage();
@@ -71,7 +78,7 @@ pub fn main() !void {
     } else if (mem.eql(u8, command, "watch")) {
         try watchCommand(allocator, args[2..]);
     } else if (mem.eql(u8, command, "config")) {
-        try configCommand(allocator, args[2..]);
+        try configCommand(io, args[2..]);
     } else if (mem.eql(u8, command, "json")) {
         try jsonCommand(allocator, args[2..]);
     } else if (mem.eql(u8, command, "benchmark")) {
@@ -457,12 +464,12 @@ fn benchmarkCommand(allocator: mem.Allocator, args: []const []const u8) !void {
     std.debug.print("\n  Total samples: {d}\n\n", .{sample_count});
 }
 
-fn configCommand(allocator: mem.Allocator, args: []const []const u8) !void {
+fn configCommand(io: std.Io, args: []const []const u8) !void {
     if (args.len == 0) {
         // Show current config
         std.debug.print("\n{s}--- nvhud Configuration ---{s}\n\n", .{ Color.nvidia, Color.reset });
 
-        const cfg = nvhud.loadConfig(allocator);
+        const cfg = nvhud.loadConfig(io);
 
         std.debug.print("{s}Display{s}\n", .{ Color.bright_cyan, Color.reset });
         std.debug.print("  show_fps:            {s}\n", .{if (cfg.show_fps) "true" else "false"});
@@ -505,7 +512,7 @@ fn configCommand(allocator: mem.Allocator, args: []const []const u8) !void {
             return;
         };
 
-        cfg.save(allocator) catch |err| {
+        cfg.save(io) catch |err| {
             std.debug.print("{s}Failed to save config: {}{s}\n", .{ Color.red, err, Color.reset });
             return;
         };

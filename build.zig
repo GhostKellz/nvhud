@@ -106,9 +106,10 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     // Build the Vulkan layer shared library (using the full implementation)
+    // Named VkLayer_nvhud to produce libVkLayer_nvhud.so (standard Vulkan layer naming)
     const layer_lib = b.addLibrary(.{
         .linkage = .dynamic,
-        .name = "nvhud_layer",
+        .name = "VkLayer_nvhud",
         .root_module = b.createModule(.{
             .root_source_file = b.path("layer/vk_layer.zig"),
             .target = target,
@@ -120,7 +121,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    layer_lib.linkSystemLibrary("vulkan");
+    layer_lib.root_module.linkSystemLibrary("vulkan", .{});
     b.installArtifact(layer_lib);
 
     // Install layer manifest
