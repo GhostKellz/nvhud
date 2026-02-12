@@ -1614,7 +1614,9 @@ export fn nvhud_DestroyDevice(
 }
 
 fn getTimeNs() u64 {
-    const ts = std.posix.clock_gettime(.MONOTONIC) catch return 0;
+    var ts: std.os.linux.timespec = undefined;
+    const rc = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+    if (rc != 0) return 0;
     return @as(u64, @intCast(ts.sec)) * 1_000_000_000 + @as(u64, @intCast(ts.nsec));
 }
 
