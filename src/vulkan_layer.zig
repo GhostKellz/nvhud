@@ -143,11 +143,9 @@ fn hook_vkQueuePresentKHR(queue: VkQueue, present_info: *const VkPresentInfoKHR)
     g_frame_count += 1;
 
     // Update metrics periodically (not every frame)
-    const instant = std.time.Instant.now() catch {
-        if (g_vkQueuePresentKHR) |present| return present(queue, present_info);
-        return VK_SUCCESS;
-    };
-    const now: i64 = @as(i64, @intCast(instant.timestamp.sec)) * 1000 + @divFloor(@as(i64, @intCast(instant.timestamp.nsec)), 1_000_000);
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+    const now: i64 = @as(i64, @intCast(@max(0, ts.sec))) * 1000 + @divFloor(@as(i64, @intCast(@max(0, ts.nsec))), 1_000_000);
     if (now - g_last_update >= 100) { // 100ms interval
         if (g_overlay) |*o| {
             if (g_collector) |*c| {

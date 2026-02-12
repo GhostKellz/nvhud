@@ -324,9 +324,10 @@ pub const Overlay = struct {
 
 /// Get current time in nanoseconds
 fn getCurrentTimeNs() u64 {
-    const now = std.time.Instant.now() catch return 0;
-    const sec: u64 = @intCast(now.timestamp.sec);
-    const nsec: u64 = @intCast(now.timestamp.nsec);
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+    const sec: u64 = @intCast(@max(0, ts.sec));
+    const nsec: u64 = @intCast(@max(0, ts.nsec));
     return sec * 1_000_000_000 + nsec;
 }
 
