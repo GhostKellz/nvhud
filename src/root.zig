@@ -115,7 +115,7 @@ pub fn getConfigFromEnv(io: Io) Config {
 
 test "version" {
     try std.testing.expectEqual(@as(u8, 0), version.major);
-    try std.testing.expectEqual(@as(u8, 3), version.minor);
+    try std.testing.expectEqual(@as(u8, 4), version.minor);
 }
 
 test "nvidia check" {

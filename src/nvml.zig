@@ -91,6 +91,8 @@ const nvmlDeviceGetEncoderUtilization_fn = *const fn (Device, *c_uint, *c_uint) 
 const nvmlDeviceGetDecoderUtilization_fn = *const fn (Device, *c_uint, *c_uint) callconv(.c) c_uint;
 const nvmlDeviceGetArchitecture_fn = *const fn (Device, *c_uint) callconv(.c) c_uint;
 const nvmlSystemGetDriverVersion_fn = *const fn ([*]u8, c_uint) callconv(.c) c_uint;
+const nvmlDeviceGetMemoryInfo_v2_fn = *const fn (Device, *nvmlMemory_v2_t) callconv(.c) c_uint;
+const nvmlDeviceGetTotalEnergyConsumption_fn = *const fn (Device, *c_ulonglong) callconv(.c) c_uint;
 
 // Structs
 const nvmlUtilization_t = extern struct {
@@ -103,6 +105,18 @@ const nvmlMemory_t = extern struct {
     free: u64,
     used: u64,
 };
+
+// Memory info v2 - includes reserved memory (driver 595+)
+const nvmlMemory_v2_t = extern struct {
+    version: c_uint,
+    total: u64,
+    reserved: u64,
+    free: u64,
+    used: u64,
+};
+
+// Version constant for nvmlMemory_v2_t (size | version << 24)
+const NVML_MEMORY_V2: c_uint = @sizeOf(nvmlMemory_v2_t) | (2 << 24);
 
 // Library handle and functions
 var lib_handle: ?*anyopaque = null;
@@ -128,6 +142,8 @@ var fn_getEncoder: ?nvmlDeviceGetEncoderUtilization_fn = null;
 var fn_getDecoder: ?nvmlDeviceGetDecoderUtilization_fn = null;
 var fn_getArch: ?nvmlDeviceGetArchitecture_fn = null;
 var fn_getDriver: ?nvmlSystemGetDriverVersion_fn = null;
+var fn_getMemV2: ?nvmlDeviceGetMemoryInfo_v2_fn = null;
+var fn_getEnergy: ?nvmlDeviceGetTotalEnergyConsumption_fn = null;
 
 // Static buffers for string returns
 var driver_version_buf: [80]u8 = undefined;
@@ -174,6 +190,8 @@ fn loadLibrary() bool {
     fn_getDecoder = lookup(nvmlDeviceGetDecoderUtilization_fn, "nvmlDeviceGetDecoderUtilization");
     fn_getArch = lookup(nvmlDeviceGetArchitecture_fn, "nvmlDeviceGetArchitecture");
     fn_getDriver = lookup(nvmlSystemGetDriverVersion_fn, "nvmlSystemGetDriverVersion");
+    fn_getMemV2 = lookup(nvmlDeviceGetMemoryInfo_v2_fn, "nvmlDeviceGetMemoryInfo_v2");
+    fn_getEnergy = lookup(nvmlDeviceGetTotalEnergyConsumption_fn, "nvmlDeviceGetTotalEnergyConsumption");
 
     return fn_init != null;
 }
@@ -281,17 +299,33 @@ pub const MemoryInfo = struct {
     total: u64,
     used: u64,
     free: u64,
+    reserved: u64 = 0, // Driver-reserved memory (v2 API, 595+)
 };
 
-/// Get memory info (bytes)
+/// Get memory info (bytes) - uses v2 API if available for reserved memory
 pub fn getMemoryInfo(device: Device) NvmlError!MemoryInfo {
-    var mem: nvmlMemory_t = undefined;
+    // Try v2 API first (595+ drivers) for reserved memory info
+    if (fn_getMemV2) |f| {
+        var mem: nvmlMemory_v2_t = undefined;
+        mem.version = NVML_MEMORY_V2;
+        if (mapReturn(f(device, &mem))) {
+            return MemoryInfo{
+                .total = mem.total,
+                .used = mem.used,
+                .free = mem.free,
+                .reserved = mem.reserved,
+            };
+        } else |_| {}
+    }
+    // Fall back to v1 API
     if (fn_getMem) |f| {
+        var mem: nvmlMemory_t = undefined;
         try mapReturn(f(device, &mem));
         return MemoryInfo{
             .total = mem.total,
             .used = mem.used,
             .free = mem.free,
+            .reserved = 0,
         };
     }
     return error.NotSupported;
@@ -385,6 +419,16 @@ pub fn getDecoderUtilization(device: Device) NvmlError!u32 {
     if (fn_getDecoder) |f| {
         try mapReturn(f(device, &util, &period));
         return util;
+    }
+    return error.NotSupported;
+}
+
+/// Get total energy consumption since driver load (millijoules)
+pub fn getTotalEnergyConsumption(device: Device) NvmlError!u64 {
+    var energy: c_ulonglong = 0;
+    if (fn_getEnergy) |f| {
+        try mapReturn(f(device, &energy));
+        return energy;
     }
     return error.NotSupported;
 }

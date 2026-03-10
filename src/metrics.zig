@@ -28,6 +28,8 @@ pub const GpuMetrics = struct {
     vram_used: u32 = 0,
     /// VRAM total (MB)
     vram_total: u32 = 0,
+    /// VRAM reserved by driver (MB) - 595+ drivers
+    vram_reserved: u32 = 0,
     /// PCIe generation
     pcie_gen: u32 = 0,
     /// PCIe link width
@@ -54,6 +56,14 @@ pub const GpuMetrics = struct {
             return self.vram_total - self.vram_used;
         }
         return 0;
+    }
+
+    /// Get actually usable VRAM (total minus reserved)
+    pub fn vramUsable(self: *const GpuMetrics) u32 {
+        if (self.vram_total > self.vram_reserved) {
+            return self.vram_total - self.vram_reserved;
+        }
+        return self.vram_total;
     }
 };
 
@@ -256,10 +266,11 @@ pub const Collector = struct {
             metrics.fan_speed = f;
         } else |_| {}
 
-        // Memory
+        // Memory (uses v2 API on 595+ for reserved memory)
         if (nvml.getMemoryInfo(dev)) |mem| {
             metrics.vram_used = @intCast(mem.used / (1024 * 1024));
             metrics.vram_total = @intCast(mem.total / (1024 * 1024));
+            metrics.vram_reserved = @intCast(mem.reserved / (1024 * 1024));
         } else |_| {}
 
         // PCIe

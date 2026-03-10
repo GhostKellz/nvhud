@@ -227,7 +227,11 @@ fn infoCommand(allocator: mem.Allocator) !void {
     std.debug.print("{s}GPU Hardware{s}\n", .{ Color.bright_cyan, Color.reset });
     std.debug.print("  Name:          {s}{s}{s}\n", .{ Color.bright_white, info.getName(), Color.reset });
     std.debug.print("  Architecture:  {s}\n", .{info.getArchitecture()});
-    std.debug.print("  VRAM:          {d} MB\n", .{info.vram_total_mb});
+    if (m.vram_reserved > 0) {
+        std.debug.print("  VRAM:          {d} MB ({d} MB usable, {d} MB reserved)\n", .{ info.vram_total_mb, m.vramUsable(), m.vram_reserved });
+    } else {
+        std.debug.print("  VRAM:          {d} MB\n", .{info.vram_total_mb});
+    }
     std.debug.print("  PCIe:          Gen{d} x{d}\n", .{ m.pcie_gen, m.pcie_width });
 
     std.debug.print("\n{s}Driver{s}\n", .{ Color.bright_cyan, Color.reset });
@@ -302,7 +306,12 @@ fn metricsCommand(allocator: mem.Allocator) !void {
         const bar = makeColorBar(vram_pct, 100, 25, vram_color);
         const used_gb = @as(f32, @floatFromInt(m.vram_used)) / 1024.0;
         const total_gb = @as(f32, @floatFromInt(m.vram_total)) / 1024.0;
-        std.debug.print("  {s}VRAM{s}    {d:.1}/{d:.0}G {s}\n", .{ Color.dim, Color.reset, used_gb, total_gb, bar });
+        if (m.vram_reserved > 0) {
+            const reserved_mb = m.vram_reserved;
+            std.debug.print("  {s}VRAM{s}    {d:.1}/{d:.0}G {s}  ({d}MB reserved)\n", .{ Color.dim, Color.reset, used_gb, total_gb, bar, reserved_mb });
+        } else {
+            std.debug.print("  {s}VRAM{s}    {d:.1}/{d:.0}G {s}\n", .{ Color.dim, Color.reset, used_gb, total_gb, bar });
+        }
     }
 
     // Clocks
@@ -407,6 +416,9 @@ fn benchmarkCommand(allocator: mem.Allocator, args: []const []const u8) !void {
     std.debug.print("\n{s}--- nvhud Benchmark ---{s}\n\n", .{ Color.nvidia, Color.reset });
     std.debug.print("Recording for {d} seconds...\n\n", .{duration_secs});
 
+    // Get initial energy reading (595+ drivers)
+    const energy_start = nvhud.nvml.getTotalEnergyConsumption(collector.device.?) catch null;
+
     // Use static buffers - max 10 samples per second for up to 120 seconds
     const MAX_SAMPLES = 1200;
     var temps: [MAX_SAMPLES]u32 = undefined;
@@ -434,6 +446,9 @@ fn benchmarkCommand(allocator: mem.Allocator, args: []const []const u8) !void {
         sleep(100 * std.time.ns_per_ms);
     }
 
+    // Get final energy reading
+    const energy_end = nvhud.nvml.getTotalEnergyConsumption(collector.device.?) catch null;
+
     std.debug.print("\n\n{s}Results:{s}\n", .{ Color.bright_cyan, Color.reset });
 
     // Calculate stats
@@ -459,6 +474,14 @@ fn benchmarkCommand(allocator: mem.Allocator, args: []const []const u8) !void {
         std.debug.print("  Temperature:  avg {d}C, max {d}C\n", .{ temp_avg, temp_max });
         std.debug.print("  Power:        avg {d}W, max {d}W\n", .{ power_avg, power_max });
         std.debug.print("  GPU Usage:    avg {d}%\n", .{util_avg});
+
+        // Energy consumption (595+ drivers)
+        if (energy_start != null and energy_end != null) {
+            const energy_mj = energy_end.? - energy_start.?;
+            const energy_wh = @as(f64, @floatFromInt(energy_mj)) / 3_600_000.0; // mJ to Wh
+            const energy_j = @as(f64, @floatFromInt(energy_mj)) / 1000.0;
+            std.debug.print("  Energy:       {d:.2} Wh ({d:.1} J)\n", .{ energy_wh, energy_j });
+        }
     }
 
     std.debug.print("\n  Total samples: {d}\n\n", .{sample_count});
