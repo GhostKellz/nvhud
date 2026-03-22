@@ -74,8 +74,8 @@ pub const Overlay = struct {
     visible: bool = true,
 
     // Render state
-    commands: std.ArrayListUnmanaged(RenderCommand) = .{},
-    lines: std.ArrayListUnmanaged(HudLine) = .{},
+    commands: std.ArrayListUnmanaged(RenderCommand) = .empty,
+    lines: std.ArrayListUnmanaged(HudLine) = .empty,
 
     // Frame timing
     frame_times: metrics.FrameTimeBuffer = .{},
