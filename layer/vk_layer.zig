@@ -1231,7 +1231,8 @@ const DeviceData = struct {
 // Global state
 var instance_map: std.AutoHashMap(usize, *InstanceData) = undefined;
 var device_map: std.AutoHashMap(usize, *DeviceData) = undefined;
-var gpa: std.heap.GeneralPurposeAllocator(.{}) = .{};
+// Zig 0.16: Use smp_allocator (replaces GeneralPurposeAllocator)
+const global_allocator = std.heap.smp_allocator;
 var initialized = false;
 
 // NVML imports from our nvml module
@@ -1298,7 +1299,7 @@ fn initGlobalState() void {
 
     debugLog("Initializing nvhud layer", .{});
 
-    const allocator = gpa.allocator();
+    const allocator = global_allocator;
     instance_map = std.AutoHashMap(usize, *InstanceData).init(allocator);
     device_map = std.AutoHashMap(usize, *DeviceData).init(allocator);
     initialized = true;
@@ -1435,7 +1436,7 @@ export fn nvhud_CreateInstance(
     if (result != .VK_SUCCESS) return result;
 
     // Store instance data
-    const allocator = gpa.allocator();
+    const allocator = global_allocator;
     const instance_data = allocator.create(InstanceData) catch return .VK_ERROR_OUT_OF_HOST_MEMORY;
     instance_data.* = .{
         .instance = pInstance.*,
@@ -1458,7 +1459,7 @@ export fn nvhud_DestroyInstance(
         if (data.destroy_instance) |destroy| {
             destroy(instance, pAllocator);
         }
-        const allocator = gpa.allocator();
+        const allocator = global_allocator;
         allocator.destroy(data);
         _ = instance_map.remove(key);
     }
@@ -1489,7 +1490,7 @@ export fn nvhud_CreateDevice(
     if (result != .VK_SUCCESS) return result;
 
     // Store device data
-    const allocator = gpa.allocator();
+    const allocator = global_allocator;
     const device_data = allocator.create(DeviceData) catch return .VK_ERROR_OUT_OF_HOST_MEMORY;
     device_data.* = .{
         .device = pDevice.*,
@@ -1607,7 +1608,7 @@ export fn nvhud_DestroyDevice(
         if (data.destroy_device) |destroy| {
             destroy(device, pAllocator);
         }
-        const allocator = gpa.allocator();
+        const allocator = global_allocator;
         allocator.destroy(data);
         _ = device_map.remove(key);
     }

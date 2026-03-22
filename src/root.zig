@@ -31,11 +31,11 @@ pub const font = @import("font.zig");
 pub const version = std.SemanticVersion{
     .major = 0,
     .minor = 4,
-    .patch = 1,
+    .patch = 4,
 };
 
 /// Version string
-pub const version_string = "0.4.1";
+pub const version_string = "0.4.4";
 
 // Re-export key types
 pub const GpuMetrics = metrics.GpuMetrics;
@@ -116,6 +116,7 @@ pub fn getConfigFromEnv(io: Io) Config {
 test "version" {
     try std.testing.expectEqual(@as(u8, 0), version.major);
     try std.testing.expectEqual(@as(u8, 4), version.minor);
+    try std.testing.expectEqual(@as(u8, 4), version.patch);
 }
 
 test "nvidia check" {
